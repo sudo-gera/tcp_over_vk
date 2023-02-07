@@ -12,6 +12,7 @@ import io
 import re
 import gzip
 import base64
+import traceback
 from ic import ic
 
 def items(q):
@@ -67,34 +68,38 @@ class Api:
 def recv_loop(api,q,group_id):
     long_poll=None
     while 1:
-        if long_poll is None:
-            long_poll=api.groups.getLongPollServer(group_id=group_id)
-            ts=long_poll['ts']
+        try:
+            if long_poll is None:
+                long_poll=api.groups.getLongPollServer(group_id=group_id)
+                ts=long_poll['ts']
 
-        poll=json.loads(urlopen(f"{long_poll['server']}?act=a_check&key={long_poll['key']}&ts={ts}&wait=25").read().decode())
+            poll=json.loads(urlopen(f"{long_poll['server']}?act=a_check&key={long_poll['key']}&ts={ts}&wait=25").read().decode())
 
-        if 'failed' in poll:
-            if poll['failed']==1:
-                ts=poll['ts']
-                continue
-            else:
-                long_poll=None
-                continue
+            if 'failed' in poll:
+                if poll['failed']==1:
+                    ts=poll['ts']
+                    continue
+                else:
+                    long_poll=None
+                    continue
 
-        upd=poll['updates']
-        ts=poll['ts']
-        for w in upd:
-            if w['type']=='message_new':
-                data=w['object']['message']['text']
-                data=base64.b64decode(data.encode())
-                data=gzip.decompress(data)
-                for w in w['object']['message']['attachments']:
-                    if w['type']=='doc':
-                        tmp=urlopen(w['doc']['url']).read()
-                        tmp=gzip.decompress(tmp)
-                        data+=tmp
-                ic(len(data))
-                q.put(data)
+            upd=poll['updates']
+            ts=poll['ts']
+            for w in upd:
+                if w['type']=='message_new':
+                    data=w['object']['message']['text']
+                    data=base64.b64decode(data.encode())
+                    data=gzip.decompress(data)
+                    for w in w['object']['message']['attachments']:
+                        if w['type']=='doc':
+                            tmp=urlopen(w['doc']['url']).read()
+                            tmp=gzip.decompress(tmp)
+                            data+=tmp
+                    ic(len(data))
+                    q.put(data)
+        except Exception:
+            ic(traceback.format_exc())
+            sleep(1/2)
 
 
 def send_loop(api,q,group_id,peer_id):
@@ -113,16 +118,21 @@ def send_loop(api,q,group_id,peer_id):
             buff=q.get()
             continue
         data=gzip.compress(data,compresslevel=9)
-        if len(data)<2048:
-            data=base64.b64encode(data).decode()
-            api.messages.send(peer_id=peer_id,message=data,random_id=random.randint(0,2**32-1))
-        else:
-            data, buff = data[:123456789], buff+data[123456789:]
-            name = f'''{len(data)}_{time()}.txt'''
-            url=api.docs.getWallUploadServer(group_id=group_id)['upload_url']
-            r = requests.post(url,files={'file': (name,io.BytesIO(data))}).json()
-            doc = api.docs.save(file=r['file'],title=name)['doc']
-            api.messages.send(peer_id=peer_id,random_id=random.randint(0,2**32-1),attachment=f'''doc{doc['owner_id']}_{doc['id']}''')
+        try:
+            if len(data)<2048:
+                data=base64.b64encode(data).decode()
+                api.messages.send(peer_id=peer_id,message=data,random_id=random.randint(0,2**32-1))
+            else:
+                data, buff = data[:123456789], buff+data[123456789:]
+                name = f'''{len(data)}_{time()}.txt'''
+                url=api.docs.getWallUploadServer(group_id=group_id)['upload_url']
+                r = requests.post(url,files={'file': (name,io.BytesIO(data))}).json()
+                doc = api.docs.save(file=r['file'],title=name)['doc']
+                api.messages.send(peer_id=peer_id,random_id=random.randint(0,2**32-1),attachment=f'''doc{doc['owner_id']}_{doc['id']}''')
+        except Exception:
+            buff+=data
+            ic(traceback.format_exc())
+            sleep(1/2)
 
 
 

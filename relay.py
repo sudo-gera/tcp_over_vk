@@ -56,7 +56,7 @@ class Server:
                     if not self.input[s]['on_event'](s):
                         break
                 except Exception:
-                    print(traceback.format_exc())
+                    ic(traceback.format_exc())
 
     def on_event(self,client):
         try:
