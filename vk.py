@@ -120,8 +120,8 @@ def send_loop(api,q,group_id,peer_id):
         data=gzip.compress(data,compresslevel=9)
         try:
             if len(data)<2048:
-                data=base64.b64encode(data).decode()
-                api.messages.send(peer_id=peer_id,message=data,random_id=random.randint(0,2**32-1))
+                _data=base64.b64encode(data).decode()
+                api.messages.send(peer_id=peer_id,message=_data,random_id=random.randint(0,2**32-1))
             else:
                 data, buff = data[:123456789], buff+data[123456789:]
                 name = f'''{len(data)}_{time()}.txt'''
@@ -130,6 +130,7 @@ def send_loop(api,q,group_id,peer_id):
                 doc = api.docs.save(file=r['file'],title=name)['doc']
                 api.messages.send(peer_id=peer_id,random_id=random.randint(0,2**32-1),attachment=f'''doc{doc['owner_id']}_{doc['id']}''')
         except Exception:
+            data=gzip.decompress(data)
             buff+=data
             ic(traceback.format_exc())
             sleep(1/2)
