@@ -10,6 +10,7 @@ import random
 import os
 import io
 import re
+import gzip
 import base64
 from ic import ic
 
@@ -86,9 +87,12 @@ def recv_loop(api,q,group_id):
             if w['type']=='message_new':
                 data=w['object']['message']['text']
                 data=base64.b64decode(data.encode())
+                data=gzip.decompress(data)
                 for w in w['object']['message']['attachments']:
                     if w['type']=='doc':
-                        data+=urlopen(w['doc']['url']).read()
+                        tmp=urlopen(w['doc']['url']).read()
+                        tmp=gzip.decompress(tmp)
+                        data+=tmp
                 ic(len(data))
                 q.put(data)
 
@@ -108,11 +112,12 @@ def send_loop(api,q,group_id,peer_id):
         if not data:
             buff=q.get()
             continue
-        if 0 and len(data)<2048:
+        data=gzip.compress(data,compresslevel=9)
+        if len(data)<2048:
             data=base64.b64encode(data).decode()
             api.messages.send(peer_id=peer_id,message=data,random_id=random.randint(0,2**32-1))
         else:
-            # data, buff = data[:123456789], data[123456789:]+buff
+            data, buff = data[:123456789], buff+data[123456789:]
             name = f'''{len(data)}_{time()}.txt'''
             url=api.docs.getWallUploadServer(group_id=group_id)['upload_url']
             r = requests.post(url,files={'file': (name,io.BytesIO(data))}).json()

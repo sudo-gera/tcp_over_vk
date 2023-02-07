@@ -77,8 +77,8 @@ if __name__ == '__main__':
     else:
         pipe=[pipe[0],pipe[3]]
         s=relay.Server()
-        s.forward_to = ('localhost',9090)
-        # s.forward_to = ('192.168.238.111',8080)
+        # s.forward_to = ('localhost',9090)
+        s.forward_to = ('192.168.238.111',8080)
         s.add_pipe(pipe)
         if list(tokens).index(token):
             s.create_server('',8080)

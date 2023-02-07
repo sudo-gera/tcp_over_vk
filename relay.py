@@ -22,6 +22,14 @@ delay = 0.0001
 # forward_to = ('localhost',9090)
 # forward_to = ('192.168.238.111',8080)
 
+def bytes_hash(b):
+    r=0
+    for w in b:
+        r*=127
+        r+=w
+        r&=2**64-1
+    return r
+
 class Server:
 
     def create_server(self, host, port):
@@ -65,6 +73,7 @@ class Server:
         message = json.dumps(message)
         message = message.encode()
         assert b'^' not in message
+        ic(message[:32],message[-32:],bytes_hash(message))
         message+=b'^'
         ic(len(message),message[:32],message[-32:])
         os.write(self.pipe[1],message)
@@ -121,6 +130,7 @@ class Server:
         ic(len(self.pipe_buffer),self.pipe_buffer[:32],self.pipe_buffer[-32:])
         [*data, self.pipe_buffer]=self.pipe_buffer.split(b'^')
         for w in data:
+            ic(w[:32],w[-32:],bytes_hash(w))
             w=json.loads(w.decode())
             if w['event']=='new':
                 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
