@@ -1,0 +1,6 @@
+def send_loop(q):
+    ...
+
+
+def recv_loop(q):
+    ...

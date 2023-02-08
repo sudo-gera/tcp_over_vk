@@ -104,7 +104,10 @@ def recv_loop(api,q,group_id):
 
 def send_loop(api,q,group_id,peer_id):
     buff=b''
+    t=time()
     while 1:
+        sleep(max(t+1.5-time(),0))
+        t=time()
         data=[buff]
         buff=b''
         try:
@@ -113,10 +116,10 @@ def send_loop(api,q,group_id,peer_id):
         except Exception:
             pass
         data=b''.join(data)
-        ic(len(data))
         if not data:
             buff=q.get()
             continue
+        ic(len(data))
         data=gzip.compress(data,compresslevel=9)
         try:
             if len(data)<2048:
