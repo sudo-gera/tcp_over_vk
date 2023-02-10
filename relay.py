@@ -18,6 +18,7 @@ from ic import ic
 # Changing the buffer_size and delay, you can improve the speed and bandwidth.
 # But when buffer get to high or delay go too down, you can broke things
 buffer_size = 4096
+pipe_buffer_size=65536
 delay = 0.0001
 # forward_to = ('localhost',9090)
 # forward_to = ('192.168.238.111',8080)
@@ -73,9 +74,10 @@ class Server:
         message = json.dumps(message)
         message = message.encode()
         assert b'^' not in message
-        ic(message[:32],message[-32:],bytes_hash(message))
+        # ic(message[:32],message[-32:],bytes_hash(message))
         message+=b'^'
-        ic(len(message),message[:32],message[-32:])
+        ic(len(message))
+        # ic(len(message),message[:32],message[-32:])
         os.write(self.pipe[1],message)
 
     def on_accept(self,server):
@@ -123,14 +125,16 @@ class Server:
         })
 
     def on_pipe(self,pipe):
+        _s=len(self.pipe_buffer)
         try:
-            self.pipe_buffer+=os.read(pipe,buffer_size)
+            self.pipe_buffer+=os.read(pipe,pipe_buffer_size)
         except BlockingIOError:
             pass
-        ic(len(self.pipe_buffer),self.pipe_buffer[:32],self.pipe_buffer[-32:])
+        # ic(len(self.pipe_buffer),self.pipe_buffer[:32],self.pipe_buffer[-32:])
+        ic(len(self.pipe_buffer)-_s)
         [*data, self.pipe_buffer]=self.pipe_buffer.split(b'^')
         for w in data:
-            ic(w[:32],w[-32:],bytes_hash(w))
+            # ic(w[:32],w[-32:],bytes_hash(w))
             w=json.loads(w.decode())
             if w['event']=='new':
                 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

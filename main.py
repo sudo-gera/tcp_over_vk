@@ -9,7 +9,9 @@ import json
 import fcntl
 import io
 import re
+# import direct
 import time
+import functools
 import queue
 import requests
 import threading
@@ -24,63 +26,191 @@ if __name__ == '__main__':
     
     token=list(tokens.keys())['rem' not in sys.argv]
 
-    pipe=[*os.pipe(),*os.pipe()]
+    # pipe=[os.pipe(),os.pipe(),os.pipe(),os.pipe()]
+    pipes=[os.pipe(),os.pipe()]
 
-    fcntl.fcntl(pipe[0], fcntl.F_SETFL, os.O_NONBLOCK);
 
     peer_id=2000000001
     group_id=tokens[token]
+    port=4022
     if not os.fork():
         time.sleep(1/2)
         q=queue.Queue()
         s=queue.Queue()
-        pipe=pipe[1]
+        pipe=pipes[0][1]
         api=vk.Api(token)
-        def run(q,pipe,s):
+        def run(q,pipe):
             tmp=b''
-            while s.empty():
+            while 1:
                 n=os.write(pipe,tmp)
-                ic(n)
+                # ic(n)
                 tmp=tmp[n:]
                 tmp+=q.get()
-        t=threading.Thread(target=run,args=(q,pipe,s))
+        t=threading.Thread(target=run,args=(q,pipe))
         t.start()
-        try:
-            vk.recv_loop(api,q,group_id)
-        except KeyboardInterrupt:
-            s.put(0)
-            q.put(b'')
-            t.join()
-            print()
+        # threading.Thread(target=functools.partial(direct.recv_loop,q,port+([*tokens].index(token)))).start()
+        threading.Thread(target=functools.partial(vk.recv_loop,api,q,group_id)).start()
+        # try:
+        #     # vk.recv_loop(api,q,group_id)
+        #     direct.recv_loop(q,port+([*tokens].index(token)))
+        # except KeyboardInterrupt:
+        #     t.join()
+        #     print()
 
     elif not os.fork():
         time.sleep(1/2)
-        api=vk.Api(token)
-        pipe=pipe[2]
         q=queue.Queue()
+        e=queue.Queue()
         s=queue.Queue()
-        def run(q,pipe,s):
+        pipe=pipes[1][0]
+        api=vk.Api(token)
+        def run(q,e,pipe):
+            # pipe_buffer=b''
+            # t=time.time()
+            # l=0
+            # tt=time.time()
+            # while 1:
+            #     try:
+            #         pipe_buffer+=os.read(pipe,relay.buffer_size)
+            #     except BlockingIOError:
+            #         pass
+            #     ic(len(pipe_buffer),pipe_buffer[:32],pipe_buffer[-32:])
+            #     [*data, pipe_buffer]=pipe_buffer.split(b'^')
+            #     count={}
+            #     for w in data:
+            #         time.sleep(max(t-time.time()+1/8,0))
+            #         t=time.time()
+            #         ic(w[:32],w[-32:],relay.bytes_hash(w))
+            #         bw=w
+            #         w=json.loads(w.decode())
+            #         p=e
+            #         if w['event']=='new':
+            #             if w['id'] not in count:
+            #                 count[w['id']]=0
+            #         if w['event']=='got':
+            #             if w['id'] not in count:
+            #                 count[w['id']]=0
+            #             if count[w['id']]>1024:
+            #                 p=q
+            #             count[w['id']]+=len(w['data'])
+            #         if w['event']=='del':
+            #             if w['id'] in count:
+            #                 del count[w['id']]
+            #         if p==e:
+            #             if l>1024:
+            #                 p=q
+            #             l+=len(bw)
+            #             if time.time()-tt>1:
+            #                 l=0
+            #         p=e
+            #         p.put(bw+b'^')
+            #     ic(q.qsize(),e.qsize())
             tmp=b''
-            while s.empty():
+            while 1:
                 q.put(tmp)
-                tmp=os.read(pipe,relay.buffer_size)
-                ic(len(tmp))
-        t=threading.Thread(target=run,args=(q,pipe,s))
+                tmp=os.read(pipe,relay.pipe_buffer_size)
+                # ic(len(tmp))
+        t=threading.Thread(target=run,args=(q,e,pipe))
         t.start()
-        try:
-            vk.send_loop(api,q,group_id,peer_id)
-        except KeyboardInterrupt:
-            s.put(0)
-            q.put(b'')
-            t.join()
-            print()
+        # threading.Thread(target=functools.partial(direct.send_loop,e,port+1-([*tokens].index(token)))).start()
+        threading.Thread(target=functools.partial(vk.send_loop,api,q,group_id,peer_id)).start()
+        # try:
+        #     direct.send_loop(q,port+1-([*tokens].index(token)))
+        #     # vk.send_loop(api,q,group_id,peer_id)
+        # except KeyboardInterrupt:
+        #     t.join()
+        #     print()
+
+    # elif not os.fork():
+    #     time.sleep(1/2)
+    #     api=vk.Api(token)
+    #     pipe=pipe[2]
+    #     q=queue.Queue()
+    #     e=queue.Queue()
+    #     s=queue.Queue()
+    #     def run(q,e,pipe,s):
+    #         # pipe_buffer=b''
+    #         # t=time.time()
+    #         # l=0
+    #         # tt=time.time()
+    #         # while s.empty():
+    #         #     try:
+    #         #         pipe_buffer+=os.read(pipe,relay.buffer_size)
+    #         #     except BlockingIOError:
+    #         #         pass
+    #         #     ic(len(pipe_buffer),pipe_buffer[:32],pipe_buffer[-32:])
+    #         #     [*data, pipe_buffer]=pipe_buffer.split(b'^')
+    #         #     count={}
+    #         #     for w in data:
+    #         #         time.sleep(time.time()-t+1/8)
+    #         #         t=time.time()
+    #         #         ic(w[:32],w[-32:],relay.bytes_hash(w))
+    #         #         bw=w
+    #         #         w=json.loads(w.decode())
+    #         #         p=e
+    #         #         if w['event']=='new':
+    #         #             if w['id'] not in count:
+    #         #                 count[w['id']]=0
+    #         #         if w['event']=='got':
+    #         #             if count[w['id']]>1024:
+    #         #                 p=q
+    #         #             count[w['id']]+=len(w['data'])
+    #         #         if w['event']=='del':
+    #         #             if w['id'] in count:
+    #         #                 del count[w['id']]
+    #         #         if p==e:
+    #         #             if l>1024:
+    #         #                 p=q
+    #         #             l+=len(bw)
+    #         #             if time.time()-tt>1:
+    #         #                 l=0
+    #         #         p.put(bw)
+    #         tmp=b''
+    #         while s.empty():
+    #             q.put(tmp)
+    #             tmp=os.read(pipe,relay.buffer_size)
+    #             ic(len(tmp))
+    #     t=threading.Thread(target=run,args=(q,e,pipe,s))
+    #     t.start()
+    #     def loop(f,a):
+    #         try:
+    #             f(*a)
+    #         except KeyboardInterrupt:
+    #             pass
+    #     y=threading.Thread(target=loop,args=(vk.send_loop,(api,q,group_id,peer_id)))
+    #     y.start()    
+    #     u=threading.Thread(target=loop,args=(direct.send_loop,(e)))
+    #     u.start()    
+    # if not os.fork():
+    #     pipe=[pipe[3][0],pipe[0][1]]
+    #     while 1:
+    #         os.write(pipe[1],os.read(pipe[0],65536))
+    #         time.sleep(2)
+    # if not os.fork():
+    #     pipe=[pipe[1][0],pipe[2][1]]
+    #     while 1:
+    #         os.write(pipe[1],os.read(pipe[0],65536))
+    #         time.sleep(2)
+    # if not os.fork():
+    #     pipe=[pipe[2][0],pipe[3][1]]
+    #     fcntl.fcntl(pipe[0], fcntl.F_SETFL, os.O_NONBLOCK);
+    #     s=relay.Server()
+    #     s.forward_to = ('127.0.0.1',9090)
+    #     s.add_pipe(pipe)
+    #     if not list(tokens).index(token):
+    #         s.create_server('',8081)
+    #     try:
+    #         s.main_loop()
+    #     except KeyboardInterrupt:
+    #         print()
     else:
-        pipe=[pipe[0],pipe[3]]
+        pipe=[pipes[0][0],pipes[1][1]]
+        fcntl.fcntl(pipe[0], fcntl.F_SETFL, os.O_NONBLOCK);
         s=relay.Server()
-        # s.forward_to = ('localhost',9090)
         s.forward_to = ('127.0.0.1',9090)
         s.add_pipe(pipe)
         if list(tokens).index(token):
+            ic(os.getpid())
             s.create_server('',8081)
         try:
             s.main_loop()
