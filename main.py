@@ -9,8 +9,9 @@ import json
 import fcntl
 import io
 import re
-import direct
+# import direct
 import time
+import functools
 import queue
 import requests
 import threading
@@ -31,6 +32,7 @@ if __name__ == '__main__':
 
     peer_id=2000000001
     group_id=tokens[token]
+    port=4022
     if not os.fork():
         time.sleep(1/2)
         q=queue.Queue()
@@ -46,31 +48,78 @@ if __name__ == '__main__':
                 tmp+=q.get()
         t=threading.Thread(target=run,args=(q,pipe))
         t.start()
-        try:
-            vk.recv_loop(api,q,group_id)
-        except KeyboardInterrupt:
-            t.join()
-            print()
+        # threading.Thread(target=functools.partial(direct.recv_loop,q,port+([*tokens].index(token)))).start()
+        threading.Thread(target=functools.partial(vk.recv_loop,api,q,group_id)).start()
+        # try:
+        #     # vk.recv_loop(api,q,group_id)
+        #     direct.recv_loop(q,port+([*tokens].index(token)))
+        # except KeyboardInterrupt:
+        #     t.join()
+        #     print()
 
-    if not os.fork():
+    elif not os.fork():
         time.sleep(1/2)
         q=queue.Queue()
+        e=queue.Queue()
         s=queue.Queue()
         pipe=pipes[1][0]
         api=vk.Api(token)
-        def run(q,pipe):
+        def run(q,e,pipe):
+            # pipe_buffer=b''
+            # t=time.time()
+            # l=0
+            # tt=time.time()
+            # while 1:
+            #     try:
+            #         pipe_buffer+=os.read(pipe,relay.buffer_size)
+            #     except BlockingIOError:
+            #         pass
+            #     ic(len(pipe_buffer),pipe_buffer[:32],pipe_buffer[-32:])
+            #     [*data, pipe_buffer]=pipe_buffer.split(b'^')
+            #     count={}
+            #     for w in data:
+            #         time.sleep(max(t-time.time()+1/8,0))
+            #         t=time.time()
+            #         ic(w[:32],w[-32:],relay.bytes_hash(w))
+            #         bw=w
+            #         w=json.loads(w.decode())
+            #         p=e
+            #         if w['event']=='new':
+            #             if w['id'] not in count:
+            #                 count[w['id']]=0
+            #         if w['event']=='got':
+            #             if w['id'] not in count:
+            #                 count[w['id']]=0
+            #             if count[w['id']]>1024:
+            #                 p=q
+            #             count[w['id']]+=len(w['data'])
+            #         if w['event']=='del':
+            #             if w['id'] in count:
+            #                 del count[w['id']]
+            #         if p==e:
+            #             if l>1024:
+            #                 p=q
+            #             l+=len(bw)
+            #             if time.time()-tt>1:
+            #                 l=0
+            #         p=e
+            #         p.put(bw+b'^')
+            #     ic(q.qsize(),e.qsize())
             tmp=b''
             while 1:
                 q.put(tmp)
                 tmp=os.read(pipe,relay.pipe_buffer_size)
                 # ic(len(tmp))
-        t=threading.Thread(target=run,args=(q,pipe))
+        t=threading.Thread(target=run,args=(q,e,pipe))
         t.start()
-        try:
-            vk.send_loop(api,q,group_id,peer_id)
-        except KeyboardInterrupt:
-            t.join()
-            print()
+        # threading.Thread(target=functools.partial(direct.send_loop,e,port+1-([*tokens].index(token)))).start()
+        threading.Thread(target=functools.partial(vk.send_loop,api,q,group_id,peer_id)).start()
+        # try:
+        #     direct.send_loop(q,port+1-([*tokens].index(token)))
+        #     # vk.send_loop(api,q,group_id,peer_id)
+        # except KeyboardInterrupt:
+        #     t.join()
+        #     print()
 
     # elif not os.fork():
     #     time.sleep(1/2)
@@ -99,14 +148,14 @@ if __name__ == '__main__':
     #         #         bw=w
     #         #         w=json.loads(w.decode())
     #         #         p=e
-    #         #         if w['type']=='new':
+    #         #         if w['event']=='new':
     #         #             if w['id'] not in count:
     #         #                 count[w['id']]=0
-    #         #         if w['type']=='got':
+    #         #         if w['event']=='got':
     #         #             if count[w['id']]>1024:
     #         #                 p=q
     #         #             count[w['id']]+=len(w['data'])
-    #         #         if w['type']=='del':
+    #         #         if w['event']=='del':
     #         #             if w['id'] in count:
     #         #                 del count[w['id']]
     #         #         if p==e:
@@ -161,6 +210,7 @@ if __name__ == '__main__':
         s.forward_to = ('127.0.0.1',9090)
         s.add_pipe(pipe)
         if list(tokens).index(token):
+            ic(os.getpid())
             s.create_server('',8081)
         try:
             s.main_loop()
