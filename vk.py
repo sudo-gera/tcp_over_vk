@@ -36,16 +36,24 @@ def api_f(token,path,data=''):
             path+='?'
     sleep(1/2)
     data=data.encode()
-    ret=loads(urlopen('https://api.vk.com/method/'+path+'v=5.131&access_token='+token,data=data).read().decode())
+    ic()
+    ic(path)
+    try:
+        ret=loads(urlopen('https://api.vk.com/method/'+path+'v=5.131&access_token='+token,data=data).read().decode())
+    except Exception:
+        ic(traceback.format_exc())
+    ic()
     try:
         if 'error' in ret.keys():
             print(path.split('?')[0],ret['error']['error_msg'],ret['error']['error_code'])
-    except:
+    except Exception:
         pprint(ret)
+        ic(traceback.format_exc())
     try:
         return items(ret['response'])
-    except:
-        pass
+    except Exception:
+        pprint(ret)
+        ic(traceback.format_exc())
 
 
 class Api:
@@ -126,7 +134,9 @@ def send_loop(api,q,group_id,peer_id):
                 data, buff = data[:123456789], buff+data[123456789:]
                 name = f'''{len(data)}_{time()}.txt'''
                 url=api.docs.getWallUploadServer(group_id=group_id)['upload_url']
+                ic()
                 r = requests.post(url,files={'file': (name,io.BytesIO(data))}).json()
+                ic()
                 doc = api.docs.save(file=r['file'],title=name)['doc']
                 api.messages.send(peer_id=peer_id,random_id=random.randint(0,2**32-1),attachment=f'''doc{doc['owner_id']}_{doc['id']}''')
         except Exception:
