@@ -1,6 +1,7 @@
 import sys
 import os
 import re
+import time
 try:
     from icecream import ic
     def outputFunction(*a):
@@ -18,7 +19,7 @@ try:
         func=s[0]
         a=a[len(func)+2:]
         args=a
-        print("\x1b[92mpid \x1b[94m"+str(os.getpid())+"\x1b[92m line \x1b[94m"+line+"\x1b[92m file \x1b[94m"+file+"\x1b[92m func \x1b[94m"+func+"\x1b[92m \x1b[0m"+args,file=sys.stderr)
+        print("\x1b[92mpid \x1b[94m"+str(os.getpid())+"\x1b[92m time \x1b[94m"+str(time.asctime())+"\x1b[92m line \x1b[94m"+line+"\x1b[92m file \x1b[94m"+file+"\x1b[92m func \x1b[94m"+func+"\x1b[92m \x1b[0m"+args,file=sys.stderr)
     ic.configureOutput(includeContext=1)
     ic.configureOutput(outputFunction=outputFunction)
     ic.configureOutput(prefix='')
