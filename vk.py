@@ -129,12 +129,12 @@ def send_loop(api,q,group_id,peer_id):
             continue
         ic(len(data))
         data=gzip.compress(data,compresslevel=9)
+        data, buff = data[:123456789], buff+data[123456789:]
         try:
             if len(data)<2048:
                 _data=base64.b64encode(data).decode()
                 api.messages.send(peer_id=peer_id,message=_data,random_id=random.randint(0,2**32-1))
             else:
-                data, buff = data[:123456789], buff+data[123456789:]
                 name = f'''{len(data)}_{time()}.txt'''
                 url=api.docs.getWallUploadServer(group_id=group_id)['upload_url']
                 ic()
