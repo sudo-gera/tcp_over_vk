@@ -1,6 +1,6 @@
 import pathlib
 import relay
-import vk
+# import vk
 import sys
 import os
 import random
@@ -9,6 +9,7 @@ import json
 import fcntl
 import io
 import re
+import tg
 # import direct
 import time
 import functools
@@ -22,7 +23,8 @@ import multiprocessing
 
 if __name__ == '__main__':
     home=str(pathlib.Path.home())+'/'
-    tokens=json.loads(open(home+'.IPoVKtoken').read())
+    # tokens=json.loads(open(home+'.IPoVKtoken').read())
+    tokens=json.loads(open(home+'.IPoTGtoken').read())
     
     token=list(tokens.keys())['rem' not in sys.argv]
 
@@ -38,7 +40,8 @@ if __name__ == '__main__':
         q=queue.Queue()
         s=queue.Queue()
         pipe=pipes[0][1]
-        api=vk.Api(token)
+        # api=vk.Api(token)
+        api=tg.Api(token)
         def run(q,pipe):
             tmp=b''
             while 1:
@@ -49,7 +52,8 @@ if __name__ == '__main__':
         t=threading.Thread(target=run,args=(q,pipe))
         t.start()
         # threading.Thread(target=functools.partial(direct.recv_loop,q,port+([*tokens].index(token)))).start()
-        threading.Thread(target=functools.partial(vk.recv_loop,api,q,group_id)).start()
+        # threading.Thread(target=functools.partial(vk.recv_loop,api,q,group_id)).start()
+        threading.Thread(target=functools.partial(tg.recv_loop,api,q)).start()
         # try:
         #     # vk.recv_loop(api,q,group_id)
         #     direct.recv_loop(q,port+([*tokens].index(token)))
@@ -63,7 +67,8 @@ if __name__ == '__main__':
         e=queue.Queue()
         s=queue.Queue()
         pipe=pipes[1][0]
-        api=vk.Api(token)
+        # api=vk.Api(token)
+        api=tg.Api(token)
         def run(q,e,pipe):
             # pipe_buffer=b''
             # t=time.time()
@@ -113,7 +118,8 @@ if __name__ == '__main__':
         t=threading.Thread(target=run,args=(q,e,pipe))
         t.start()
         # threading.Thread(target=functools.partial(direct.send_loop,e,port+1-([*tokens].index(token)))).start()
-        threading.Thread(target=functools.partial(vk.send_loop,api,q,group_id,peer_id)).start()
+        # threading.Thread(target=functools.partial(vk.send_loop,api,q,group_id,peer_id)).start()
+        threading.Thread(target=functools.partial(tg.send_loop,api,q)).start()
         # try:
         #     direct.send_loop(q,port+1-([*tokens].index(token)))
         #     # vk.send_loop(api,q,group_id,peer_id)
