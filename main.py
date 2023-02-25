@@ -119,7 +119,8 @@ if __name__ == '__main__':
         t.start()
         # threading.Thread(target=functools.partial(direct.send_loop,e,port+1-([*tokens].index(token)))).start()
         # threading.Thread(target=functools.partial(vk.send_loop,api,q,group_id,peer_id)).start()
-        threading.Thread(target=functools.partial(tg.send_loop,api,q)).start()
+        # threading.Thread(target=functools.partial(tg.send_loop,api,q)).start()
+        threading.Thread(target=functools.partial(tg.run_server,api,q)).start()
         # try:
         #     direct.send_loop(q,port+1-([*tokens].index(token)))
         #     # vk.send_loop(api,q,group_id,peer_id)
@@ -216,7 +217,7 @@ if __name__ == '__main__':
         s.forward_to = ('127.0.0.1',9090)
         s.add_pipe(pipe)
         if list(tokens).index(token):
-            ic(os.getpid())
+            # ic(os.getpid())
             s.create_server('',8081)
         try:
             s.main_loop()

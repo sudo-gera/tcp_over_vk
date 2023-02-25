@@ -47,17 +47,31 @@ class Server:
         self.pipe_buffer=b''
         self.client_by_id={}
 
+    def check(self):
+        if 0:
+            # ic(self.client_by_id)
+            # ic(self.input)
+            for client_id in self.client_by_id:
+                assert self.client_by_id[client_id] in self.input
+                assert self.input[self.client_by_id[client_id]]['id']==client_id
+            for client in self.input:
+                if 'id' in self.input[client]:
+                    assert self.input[client]['id'] in self.client_by_id
+                    assert self.client_by_id[self.input[client]['id']]==client
+
     def main_loop(self):
         ss = select.select
         while 1:
             time.sleep(delay)
             input_ready, output_ready, except_ready = ss(self.input.keys(), [], [])
             for s in input_ready:
+                self.check()
                 try:
                     if not self.input[s]['on_event'](s):
                         break
                 except Exception:
                     ic(traceback.format_exc())
+                self.check()
 
     def on_event(self,client):
         try:
@@ -70,19 +84,20 @@ class Server:
             self.on_recv(client,data)
             return 1
 
-    def pipe_send(self,message):
-        message = json.dumps(message)
-        message = message.encode()
-        assert b'^' not in message
-        # ic(message[:32],message[-32:],bytes_hash(message))
-        message+=b'^'
-        ic(len(message))
-        # ic(len(message),message[:32],message[-32:])
-        os.write(self.pipe[1],message)
+    def pipe_send(self,w):
+        w = json.dumps(w)
+        w = w.encode()
+        assert b'^' not in w
+        # ic(w[:32],w[-32:],bytes_hash(w))
+        w+=b'^'
+        # ic(len(w))
+        # ic(len(w),w[:32],w[-32:])
+        ic(w)
+        os.write(self.pipe[1],w)
 
     def on_accept(self,server):
         client, client_addr = server.accept()
-        print (client_addr, "has connected")
+        # print (client_addr, "has connected")
         client_id = int(time.time()*2**128)
         self.client_by_id[client_id]=client
         self.input[client]={
@@ -105,7 +120,7 @@ class Server:
             n=client.getpeername()
         except OSError:
             n='(undefined)'
-        print (n, "has disconnected")
+        # print (n, "has disconnected")
         client_id=self.input[client]['id']
         self.pipe_send({
             'event': 'del',
@@ -131,9 +146,10 @@ class Server:
         except BlockingIOError:
             pass
         # ic(len(self.pipe_buffer),self.pipe_buffer[:32],self.pipe_buffer[-32:])
-        ic(len(self.pipe_buffer)-_s)
+        # ic(len(self.pipe_buffer)-_s)
         [*data, self.pipe_buffer]=self.pipe_buffer.split(b'^')
         for w in data:
+            ic(w)
             # ic(w[:32],w[-32:],bytes_hash(w))
             w=json.loads(w.decode())
             if w['event']=='new':
