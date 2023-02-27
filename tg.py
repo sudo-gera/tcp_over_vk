@@ -12,6 +12,7 @@ import sys
 import base64
 import traceback
 import gzip
+import random
 from urllib.parse import quote_plus
 
 home=str(pathlib.Path.home())+'/'
@@ -86,13 +87,20 @@ def recv_loop(api,q):
                 # data=urlopen(api.__getattr__(y['file_path'])._file()).read()
                 data=urlopen(base64.b64decode(r[2].encode()).decode()).read()
                 data=gzip.decompress(data)
-                # ic(data)
+                ic(len(data))
                 q.put(data)
             elif r[1]=='text':
                 r=r[2]
                 t=base64.b64decode(r.encode())
-                # ic(t)
+                ic(len(t))
                 q.put(t)
+
+            # chat_id=-1001851792503
+
+            # text=''.join([chr(random.randint(32,126)) for w in range(random.randint(1,256))])
+
+            # api.sendMessage(chat_id=chat_id,text=text)
+
             # if 'reply_to_message' not in r:
             #     continue
             # r=r['reply_to_message']
@@ -152,6 +160,7 @@ _buff_=b''
 _api_=0
 
 
+
 class MyServer(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200, "ok")
@@ -161,30 +170,35 @@ class MyServer(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def do_GET(self):
+        self.send_loop()
+
+    def send_loop(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
+        time.sleep(0.1)
         global _buff_
         data=[_buff_,_q_.get()]
-        # self._q_[1].put(base64.b64decde(self.path[1:].encode()))
+        time.sleep(0.1)
         try:
             while 1:
                 data.append(_q_.get_nowait())
         except queue.Empty:
             pass
         data=b''.join(data)
-        l=1024
+        l=256
         if not data:
             return
         if len(data)<l:
             data,_buff_=data[:l],data[l:]
-            # ic(data)
+            ic(len(data))
             self.wfile.write(sys.argv[1].encode()+b'_text_'+base64.b64encode(data))
         else:
             ll=1024**2*16
             data,_buff_=data[:ll],data[ll:]
-            # ic(data)
+            ic(len(data))
+            # print('')
 
             api=_api_
 

@@ -84,21 +84,10 @@ class Server:
             self.on_recv(client,data)
             return 1
 
-    def pipe_send(self,w):
-        w = json.dumps(w)
-        w = w.encode()
-        assert b'^' not in w
-        # ic(w[:32],w[-32:],bytes_hash(w))
-        w+=b'^'
-        # ic(len(w))
-        # ic(len(w),w[:32],w[-32:])
-        ic(w)
-        os.write(self.pipe[1],w)
-
     def on_accept(self,server):
         client, client_addr = server.accept()
         # print (client_addr, "has connected")
-        client_id = int(time.time()*2**128)
+        client_id = base64.b64encode((round(time.time()*10**6)%256**6).to_bytes(6,'little')).decode()
         self.client_by_id[client_id]=client
         self.input[client]={
             'on_event': self.on_event,
@@ -139,6 +128,37 @@ class Server:
             'data': data
         })
 
+    def pipe_send(self,w):
+        # ic(w)
+        assert type(w)==dict
+        assert set(w.keys()) in [{'event','id'},{'event','id','data'}]
+        assert w['event'] in 'new del got'.split()
+        assert (w['event'] == 'got')==('data' in w)
+        assert len(w['id'])==8
+        assert len(base64.b64decode(w['id']))==6
+        if 'data' in w:
+            data=base64.b64decode(w['data'].encode())
+            pref=len(data)*2
+            pref=pref.to_bytes(4,'little')
+        else:
+            pref=[None,'new',None,'del'].index(w['event'])
+            pref=pref.to_bytes(1,'little')
+        pref+=w['id'].encode()
+        if 'data' in w:
+            pref+=data
+        w=pref
+
+        # w = json.dumps(w)
+        # w = w.encode()
+        # assert b'^' not in w
+        # # ic(w[:32],w[-32:],bytes_hash(w))
+        # w+=b'^'
+        # # ic(len(w))
+        # # ic(len(w),w[:32],w[-32:])
+        # # ic(w)
+        # ic(w)
+        os.write(self.pipe[1],w)
+
     def on_pipe(self,pipe):
         _s=len(self.pipe_buffer)
         try:
@@ -147,37 +167,67 @@ class Server:
             pass
         # ic(len(self.pipe_buffer),self.pipe_buffer[:32],self.pipe_buffer[-32:])
         # ic(len(self.pipe_buffer)-_s)
-        [*data, self.pipe_buffer]=self.pipe_buffer.split(b'^')
+        # [*data, self.pipe_buffer]=self.pipe_buffer.split(b'^')
+        data=[]
+        b=self.pipe_buffer
+        # ic(b)
+        while 1:
+            if not b:
+                break
+            elif b[0]%2:
+                if len(b)<9:
+                    break
+                data.append({
+                    'event':[None,'new',None,'del'][b[0]],
+                    'id':b[1:9].decode()
+                })
+                b=b[9:]
+            else:
+                l=int.from_bytes(b[:4],'little')//2
+                if len(b)<12+l:
+                    break
+                data.append({
+                    'event':'got',
+                    'id':b[4:12].decode(),
+                    'data':base64.b64encode(b[12:12+l]).decode()
+                })
+                b=b[12+l:]
+        self.pipe_buffer=b
+        # ic(b,data)
         for w in data:
-            ic(w)
-            # ic(w[:32],w[-32:],bytes_hash(w))
-            w=json.loads(w.decode())
-            if w['event']=='new':
-                client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                client.connect(self.forward_to)
-                client_id = w['id']
-                self.client_by_id[client_id]=client
-                self.input[client]={
-                    'id': client_id,
-                    'on_event': self.on_event,
-                }
-            if w['event']=='got':
-                try:
-                    client=self.client_by_id[w['id']]
-                    data=w['data']
-                    data=data.encode()
-                    data=base64.b64decode(data)
-                    client.send(data)
-                except KeyError:
-                    pass
-            if w['event']=='del':
-                try:
-                    client=self.client_by_id[w['id']]
-                    client.close()
-                    del self.input[client]
-                    del self.client_by_id[w['id']]
-                except KeyError:
-                    pass
+            self.pipe_got(w)
+
+    def pipe_got(self,w):
+        # ic(len(w))
+        # ic(w)
+        # ic(w[:32],w[-32:],bytes_hash(w))
+        # w=json.loads(w.decode())
+        if w['event']=='new':
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client.connect(self.forward_to)
+            client_id = w['id']
+            self.client_by_id[client_id]=client
+            self.input[client]={
+                'id': client_id,
+                'on_event': self.on_event,
+            }
+        if w['event']=='got':
+            try:
+                client=self.client_by_id[w['id']]
+                data=w['data']
+                data=data.encode()
+                data=base64.b64decode(data)
+                client.send(data)
+            except KeyError:
+                pass
+        if w['event']=='del':
+            try:
+                client=self.client_by_id[w['id']]
+                client.close()
+                del self.input[client]
+                del self.client_by_id[w['id']]
+            except KeyError:
+                pass
 
 
 # if __name__ == '__main__':

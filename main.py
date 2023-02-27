@@ -53,7 +53,11 @@ if __name__ == '__main__':
         t.start()
         # threading.Thread(target=functools.partial(direct.recv_loop,q,port+([*tokens].index(token)))).start()
         # threading.Thread(target=functools.partial(vk.recv_loop,api,q,group_id)).start()
-        threading.Thread(target=functools.partial(tg.recv_loop,api,q)).start()
+        # threading.Thread(target=functools.partial(tg.recv_loop,api,q)).start()
+        try:
+            tg.recv_loop(api,q)
+        except KeyboardInterrupt:
+            pass
         # try:
         #     # vk.recv_loop(api,q,group_id)
         #     direct.recv_loop(q,port+([*tokens].index(token)))
@@ -120,7 +124,11 @@ if __name__ == '__main__':
         # threading.Thread(target=functools.partial(direct.send_loop,e,port+1-([*tokens].index(token)))).start()
         # threading.Thread(target=functools.partial(vk.send_loop,api,q,group_id,peer_id)).start()
         # threading.Thread(target=functools.partial(tg.send_loop,api,q)).start()
-        threading.Thread(target=functools.partial(tg.run_server,api,q)).start()
+        # threading.Thread(target=functools.partial(tg.run_server,api,q)).start()
+        try:
+            tg.run_server(api,q)
+        except KeyboardInterrupt:
+            pass
         # try:
         #     direct.send_loop(q,port+1-([*tokens].index(token)))
         #     # vk.send_loop(api,q,group_id,peer_id)
@@ -214,7 +222,8 @@ if __name__ == '__main__':
         pipe=[pipes[0][0],pipes[1][1]]
         fcntl.fcntl(pipe[0], fcntl.F_SETFL, os.O_NONBLOCK);
         s=relay.Server()
-        s.forward_to = ('127.0.0.1',9090)
+        # s.forward_to = ('127.0.0.1',9090)
+        s.forward_to = ('192.168.49.1',8080)
         s.add_pipe(pipe)
         if list(tokens).index(token):
             # ic(os.getpid())

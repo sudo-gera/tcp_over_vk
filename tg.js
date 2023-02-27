@@ -49,7 +49,6 @@ function get_from_local_server(p){
                 var e='http://localhost:'+p;
                 var e=await fetch(e);
                 var e=await e.text();
-                console.log(e);
                 if (e){
                     type_text(e);
                     click_send();
