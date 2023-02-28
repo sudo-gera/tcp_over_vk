@@ -36,13 +36,13 @@ def api_f(token,path,data=''):
             path+='?'
     sleep(1/2)
     data=data.encode()
-    ic()
-    ic(path)
+    # ic()
+    # ic(path)
     try:
         ret=loads(urlopen('https://api.vk.com/method/'+path+'v=5.131&access_token='+token,data=data).read().decode())
     except Exception:
         ic(traceback.format_exc())
-    ic()
+    # ic()
     try:
         if 'error' in ret.keys():
             print(path.split('?')[0],ret['error']['error_msg'],ret['error']['error_code'])
@@ -73,7 +73,8 @@ class Api:
         d='&'.join(d)
         return api_f(self._t,s+d)
 
-def recv_loop(api,q,group_id):
+def recv_loop(api,q):
+    group_id=api.group_id
     long_poll=None
     while 1:
         try:
@@ -97,7 +98,6 @@ def recv_loop(api,q,group_id):
                 if w['type']=='message_new':
                     data=w['object']['message']['text']
                     data=base64.b64decode(data.encode())
-                    data=gzip.decompress(data)
                     for w in w['object']['message']['attachments']:
                         if w['type']=='doc':
                             tmp=urlopen(w['doc']['url']).read()
@@ -110,11 +110,13 @@ def recv_loop(api,q,group_id):
             sleep(1/2)
 
 
-def send_loop(api,q,group_id,peer_id):
+def send_loop(api,q):
+    group_id=api.group_id
+    peer_id=2000000001
     buff=b''
     t=time()
     while 1:
-        sleep(max(t+1.5-time(),0))
+        # sleep(max(t+1.5-time(),0))
         t=time()
         data=[buff]
         buff=b''
@@ -126,24 +128,28 @@ def send_loop(api,q,group_id,peer_id):
         data=b''.join(data)
         if not data:
             buff=q.get()
+            sleep(0.1)
             continue
         ic(len(data))
-        data=gzip.compress(data,compresslevel=9)
-        data, buff = data[:123456789], buff+data[123456789:]
         try:
-            if len(data)<2048:
+            l=2048
+            if len(data)<l:
+                data, buff = data[:l], buff+data[l:]
                 _data=base64.b64encode(data).decode()
                 api.messages.send(peer_id=peer_id,message=_data,random_id=random.randint(0,2**32-1))
             else:
+                ll=1234567890
+                data, buff = data[:ll], buff+data[ll:]
+                _data=gzip.compress(data,compresslevel=9)
                 name = f'''{len(data)}_{time()}.txt'''
                 url=api.docs.getWallUploadServer(group_id=group_id)['upload_url']
-                ic()
-                r = requests.post(url,files={'file': (name,io.BytesIO(data))}).json()
-                ic()
+                # ic()
+                r = requests.post(url,files={'file': (name,io.BytesIO(_data))}).json()
+                # ic()
                 doc = api.docs.save(file=r['file'],title=name)['doc']
                 api.messages.send(peer_id=peer_id,random_id=random.randint(0,2**32-1),attachment=f'''doc{doc['owner_id']}_{doc['id']}''')
         except Exception:
-            data=gzip.decompress(data)
+            data=_data
             buff+=data
             ic(traceback.format_exc())
             sleep(1/2)

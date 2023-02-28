@@ -1,6 +1,6 @@
 import pathlib
 import relay
-# import vk
+import vk
 import sys
 import os
 import random
@@ -9,7 +9,7 @@ import json
 import fcntl
 import io
 import re
-import tg
+# import tg
 # import direct
 import time
 import functools
@@ -23,8 +23,8 @@ import multiprocessing
 
 if __name__ == '__main__':
     home=str(pathlib.Path.home())+'/'
-    # tokens=json.loads(open(home+'.IPoVKtoken').read())
-    tokens=json.loads(open(home+'.IPoTGtoken').read())
+    tokens=json.loads(open(home+'.IPoVKtoken').read())
+    # tokens=json.loads(open(home+'.IPoTGtoken').read())
     
     token=list(tokens.keys())['rem' not in sys.argv]
 
@@ -32,16 +32,15 @@ if __name__ == '__main__':
     pipes=[os.pipe(),os.pipe()]
 
 
-    peer_id=2000000001
-    group_id=tokens[token]
     port=4022
     if not os.fork():
         time.sleep(1/2)
         q=queue.Queue()
         s=queue.Queue()
         pipe=pipes[0][1]
-        # api=vk.Api(token)
-        api=tg.Api(token)
+        api=vk.Api(token)
+        api.group_id=tokens[token]
+        # api=tg.Api(token)
         def run(q,pipe):
             tmp=b''
             while 1:
@@ -54,8 +53,10 @@ if __name__ == '__main__':
         # threading.Thread(target=functools.partial(direct.recv_loop,q,port+([*tokens].index(token)))).start()
         # threading.Thread(target=functools.partial(vk.recv_loop,api,q,group_id)).start()
         # threading.Thread(target=functools.partial(tg.recv_loop,api,q)).start()
+        # vk.recv_loop(api,q)
         try:
-            tg.recv_loop(api,q)
+            # tg.recv_loop(api,q)
+            vk.recv_loop(api,q)
         except KeyboardInterrupt:
             pass
         # try:
@@ -71,8 +72,9 @@ if __name__ == '__main__':
         e=queue.Queue()
         s=queue.Queue()
         pipe=pipes[1][0]
-        # api=vk.Api(token)
-        api=tg.Api(token)
+        api=vk.Api(token)
+        api.group_id=tokens[token]
+        # api=tg.Api(token)
         def run(q,e,pipe):
             # pipe_buffer=b''
             # t=time.time()
@@ -125,8 +127,10 @@ if __name__ == '__main__':
         # threading.Thread(target=functools.partial(vk.send_loop,api,q,group_id,peer_id)).start()
         # threading.Thread(target=functools.partial(tg.send_loop,api,q)).start()
         # threading.Thread(target=functools.partial(tg.run_server,api,q)).start()
+        # vk.send_loop(api,q)
         try:
-            tg.run_server(api,q)
+            # tg.run_server(api,q)
+            vk.send_loop(api,q)
         except KeyboardInterrupt:
             pass
         # try:
@@ -223,7 +227,8 @@ if __name__ == '__main__':
         fcntl.fcntl(pipe[0], fcntl.F_SETFL, os.O_NONBLOCK);
         s=relay.Server()
         # s.forward_to = ('127.0.0.1',9090)
-        s.forward_to = ('192.168.49.1',8080)
+        # s.forward_to = ('192.168.49.1',8080)
+        s.forward_to = ('192.168.238.111',8080)
         s.add_pipe(pipe)
         if list(tokens).index(token):
             # ic(os.getpid())

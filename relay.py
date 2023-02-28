@@ -87,7 +87,7 @@ class Server:
     def on_accept(self,server):
         client, client_addr = server.accept()
         # print (client_addr, "has connected")
-        client_id = base64.b64encode((round(time.time()*10**6)%256**6).to_bytes(6,'little')).decode()
+        client_id = round(time.time()*10**6)%(256**6//4)*4
         self.client_by_id[client_id]=client
         self.input[client]={
             'on_event': self.on_event,
@@ -120,7 +120,7 @@ class Server:
         del self.client_by_id[client_id]
 
     def on_recv(self,client,data):
-        data=base64.b64encode(data).decode()
+        data=data
         client_id=self.input[client]['id']
         self.pipe_send({
             'event': 'got',
@@ -134,28 +134,23 @@ class Server:
         assert set(w.keys()) in [{'event','id'},{'event','id','data'}]
         assert w['event'] in 'new del got'.split()
         assert (w['event'] == 'got')==('data' in w)
-        assert len(w['id'])==8
-        assert len(base64.b64decode(w['id']))==6
+        assert w['id']%4==0
+        assert w['id']//256**6==0
+        data=[None,'new','got','del'].index(w['event'])
+        data+=w['id']
+        data=data.to_bytes(6,'little')
         if 'data' in w:
-            data=base64.b64decode(w['data'].encode())
-            pref=len(data)*2
-            pref=pref.to_bytes(4,'little')
-        else:
-            pref=[None,'new',None,'del'].index(w['event'])
-            pref=pref.to_bytes(1,'little')
-        pref+=w['id'].encode()
-        if 'data' in w:
-            pref+=data
-        w=pref
-
-        # w = json.dumps(w)
-        # w = w.encode()
-        # assert b'^' not in w
-        # # ic(w[:32],w[-32:],bytes_hash(w))
-        # w+=b'^'
-        # # ic(len(w))
-        # # ic(len(w),w[:32],w[-32:])
-        # # ic(w)
+            ll=256**4
+            if len(w['data'])>=ll:
+                tmp=w['data']
+                w['data']=tmp[:ll]
+                self.pipe_send(w)
+                w['data']=tmp[ll:]
+                self.pipe_send(w)
+                return
+            data+=len(w['data']).to_bytes(4,'little')
+            data+=w['data']
+        w=data
         # ic(w)
         os.write(self.pipe[1],w)
 
@@ -165,43 +160,34 @@ class Server:
             self.pipe_buffer+=os.read(pipe,pipe_buffer_size)
         except BlockingIOError:
             pass
-        # ic(len(self.pipe_buffer),self.pipe_buffer[:32],self.pipe_buffer[-32:])
-        # ic(len(self.pipe_buffer)-_s)
-        # [*data, self.pipe_buffer]=self.pipe_buffer.split(b'^')
         data=[]
         b=self.pipe_buffer
         # ic(b)
         while 1:
-            if not b:
+            if len(b)<6:
                 break
-            elif b[0]%2:
-                if len(b)<9:
-                    break
-                data.append({
-                    'event':[None,'new',None,'del'][b[0]],
-                    'id':b[1:9].decode()
-                })
-                b=b[9:]
+            pref=int.from_bytes(b[:6],'little')
+            tmp={
+                'event':[None,'new','got','del'][pref%4],
+                'id':pref//4*4,
+            }
+            if pref%2:
+                data.append(tmp)
+                b=b[6:]
             else:
-                l=int.from_bytes(b[:4],'little')//2
-                if len(b)<12+l:
+                l=int.from_bytes(b[6:10],'little')
+                if len(b)<10 or len(b)<l+10:
                     break
-                data.append({
-                    'event':'got',
-                    'id':b[4:12].decode(),
-                    'data':base64.b64encode(b[12:12+l]).decode()
-                })
-                b=b[12+l:]
+                tmp['data']=b[10:10+l]
+                data.append(tmp)
+                b=b[10+l:]
         self.pipe_buffer=b
         # ic(b,data)
         for w in data:
+            # ic(w)
             self.pipe_got(w)
 
     def pipe_got(self,w):
-        # ic(len(w))
-        # ic(w)
-        # ic(w[:32],w[-32:],bytes_hash(w))
-        # w=json.loads(w.decode())
         if w['event']=='new':
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client.connect(self.forward_to)
@@ -215,8 +201,6 @@ class Server:
             try:
                 client=self.client_by_id[w['id']]
                 data=w['data']
-                data=data.encode()
-                data=base64.b64decode(data)
                 client.send(data)
             except KeyError:
                 pass
