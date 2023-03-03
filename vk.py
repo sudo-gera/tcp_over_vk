@@ -73,7 +73,7 @@ class Api:
         d='&'.join(d)
         return api_f(self._t,s+d)
 
-def recv_loop(api,q):
+def recv_loop(api,q,tg_api=None):
     group_id=api.group_id
     long_poll=None
     while 1:
@@ -97,7 +97,15 @@ def recv_loop(api,q):
             for w in upd:
                 if w['type']=='message_new':
                     data=w['object']['message']['text']
-                    data=base64.b64decode(data.encode())
+                    # data=data.split('_',1)
+                    # if len(data)<2:
+                    #     continue
+                    # t=data[0]
+                    # data=data[1]
+                    data=base64.b64decode(data)
+                    # if t=='file':
+                    #     data=urlopen(data.decode()).read()
+                    #     data=gzip.decompress(data)
                     for w in w['object']['message']['attachments']:
                         if w['type']=='doc':
                             tmp=urlopen(w['doc']['url']).read()
@@ -110,7 +118,7 @@ def recv_loop(api,q):
             sleep(1/2)
 
 
-def send_loop(api,q):
+def send_loop(api,q,tg_api=None):
     group_id=api.group_id
     peer_id=2000000001
     buff=b''
@@ -130,26 +138,32 @@ def send_loop(api,q):
             buff=q.get()
             sleep(0.1)
             continue
-        ic(len(data))
         try:
             l=2048
             if len(data)<l:
                 data, buff = data[:l], buff+data[l:]
+                ic(len(data))
                 _data=base64.b64encode(data).decode()
                 api.messages.send(peer_id=peer_id,message=_data,random_id=random.randint(0,2**32-1))
+                # api.messages.send(peer_id=peer_id,message='text_'+_data,random_id=random.randint(0,2**32-1))
             else:
-                ll=1234567890
+                ll=16*1024**2
                 data, buff = data[:ll], buff+data[ll:]
+                ic(len(data))
                 _data=gzip.compress(data,compresslevel=9)
                 name = f'''{len(data)}_{time()}.txt'''
+                # chat_id=-1001851792503
+                # r = requests.post(tg_api.sendDocument._url(chat_id=chat_id), files=[['document',[name,_data]]]).json()['result']
+                # r=tg_api.getFile(file_id=r['document']['file_id'])
+                # r=tg_api.__getattr__(r['file_path'])._file().encode()
+                # r=base64.b64encode(r).decode()
+                # api.messages.send(peer_id=peer_id,message='file_'+r,random_id=random.randint(0,2**32-1))
+
                 url=api.docs.getWallUploadServer(group_id=group_id)['upload_url']
-                # ic()
                 r = requests.post(url,files={'file': (name,io.BytesIO(_data))}).json()
-                # ic()
                 doc = api.docs.save(file=r['file'],title=name)['doc']
                 api.messages.send(peer_id=peer_id,random_id=random.randint(0,2**32-1),attachment=f'''doc{doc['owner_id']}_{doc['id']}''')
         except Exception:
-            data=_data
             buff+=data
             ic(traceback.format_exc())
             sleep(1/2)
