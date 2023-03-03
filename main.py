@@ -226,9 +226,9 @@ if __name__ == '__main__':
         pipe=[pipes[0][0],pipes[1][1]]
         fcntl.fcntl(pipe[0], fcntl.F_SETFL, os.O_NONBLOCK);
         s=relay.Server()
-        # s.forward_to = ('127.0.0.1',9090)
+        s.forward_to = ('127.0.0.1',9090)
         # s.forward_to = ('192.168.49.1',8080)
-        s.forward_to = ('192.168.238.111',8080)
+        # s.forward_to = ('192.168.238.111',8080)
         s.add_pipe(pipe)
         if list(tokens).index(token):
             # ic(os.getpid())
