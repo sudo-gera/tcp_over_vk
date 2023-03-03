@@ -24,9 +24,11 @@ import multiprocessing
 if __name__ == '__main__':
     home=str(pathlib.Path.home())+'/'
     tokens=json.loads(open(home+'.IPoVKtoken').read())
+    tg_tokens=json.loads(open(home+'.IPoTGtoken').read())
     # tokens=json.loads(open(home+'.IPoTGtoken').read())
     
     token=list(tokens.keys())['rem' not in sys.argv]
+    tg_token=list(tg_tokens.keys())['rem' not in sys.argv]
 
     # pipe=[os.pipe(),os.pipe(),os.pipe(),os.pipe()]
     pipes=[os.pipe(),os.pipe()]
@@ -40,6 +42,7 @@ if __name__ == '__main__':
         pipe=pipes[0][1]
         api=vk.Api(token)
         api.group_id=tokens[token]
+        # tg_api=tg.Api(tg_token)
         # api=tg.Api(token)
         def run(q,pipe):
             tmp=b''
@@ -56,6 +59,7 @@ if __name__ == '__main__':
         # vk.recv_loop(api,q)
         try:
             # tg.recv_loop(api,q)
+            # vk.recv_loop(api,q,tg_api)
             vk.recv_loop(api,q)
         except KeyboardInterrupt:
             pass
@@ -74,6 +78,7 @@ if __name__ == '__main__':
         pipe=pipes[1][0]
         api=vk.Api(token)
         api.group_id=tokens[token]
+        # tg_api=tg.Api(tg_token)
         # api=tg.Api(token)
         def run(q,e,pipe):
             # pipe_buffer=b''
@@ -130,6 +135,7 @@ if __name__ == '__main__':
         # vk.send_loop(api,q)
         try:
             # tg.run_server(api,q)
+            # vk.send_loop(api,q,tg_api)
             vk.send_loop(api,q)
         except KeyboardInterrupt:
             pass
