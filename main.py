@@ -24,11 +24,11 @@ import multiprocessing
 if __name__ == '__main__':
     home=str(pathlib.Path.home())+'/'
     tokens=json.loads(open(home+'.IPoVKtoken').read())
-    tg_tokens=json.loads(open(home+'.IPoTGtoken').read())
+    # tg_tokens=json.loads(open(home+'.IPoTGtoken').read())
     # tokens=json.loads(open(home+'.IPoTGtoken').read())
     
     token=list(tokens.keys())['rem' not in sys.argv]
-    tg_token=list(tg_tokens.keys())['rem' not in sys.argv]
+    # tg_token=list(tg_tokens.keys())['rem' not in sys.argv]
 
     # pipe=[os.pipe(),os.pipe(),os.pipe(),os.pipe()]
     pipes=[os.pipe(),os.pipe()]
