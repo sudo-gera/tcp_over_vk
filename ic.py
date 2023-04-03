@@ -24,9 +24,9 @@ try:
         at=time.asctime().split()
         at[3]+=t[1:]
         at=' '.join(at)
-        print("\x1b[92mpid \x1b[94m"+str(os.getpid())+"\x1b[92m time \x1b[94m"+at+"\x1b[92m line \x1b[94m"+line+"\x1b[92m file \x1b[94m"+file+"\x1b[92m func \x1b[94m"+func+"\x1b[92m \x1b[0m"+args,file=sys.stderr)
+        print("\x1b[92mpid \x1b[94m"+str(os.getpid())+"\x1b[92m time \x1b[94m"+at+"\x1b[92m line \x1b[94m"+line+"\x1b[92m file \x1b[94m"+file+"\x1b[92m:\x1b[94m"+line+"\x1b[92m func \x1b[94m"+func+"\x1b[92m \x1b[0m"+args,file=sys.stderr)
     ic.configureOutput(includeContext=1)
     ic.configureOutput(outputFunction=outputFunction)
     ic.configureOutput(prefix='')
 except Exception:
-    ic=lambda a=None:a
+    ic=lambda *a:a[0] if len(a)==1 else [None,a][bool(a)]
