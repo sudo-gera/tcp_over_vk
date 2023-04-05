@@ -106,7 +106,7 @@ class Handler(BaseHTTPRequestHandler):
         # ic(n,data)
         # ic(n,polyhash(data))
         q[1-n].put(data)
-        self.wfile.write(b'ok')
+        self.wfile.write(b'')
 
     def log_message(*args):
         pass

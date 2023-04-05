@@ -36,9 +36,9 @@ if __name__ == '__main__':
     if 'rem' in sys.argv:
         u=None
     else:
-        # u='http://localhost:4444/'
+        u='http://localhost:4444/'
         # u='https://user225847803-m4cnctou.wormhole.vk-apps.com/'
-        u='https://user225847803-umg7xzg6.wormhole.vk-apps.com/'
+        # u='https://user225847803-umg7xzg6.wormhole.vk-apps.com/'
 
     threading.Thread(target=lambda:direct.setup(u)).start()
 
