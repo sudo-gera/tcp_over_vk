@@ -33,12 +33,13 @@ if __name__ == '__main__':
     # pipe=[os.pipe(),os.pipe(),os.pipe(),os.pipe()]
     pipes=[os.pipe(),os.pipe()]
 
-    if 'rem' not in sys.argv:
+    if 'rem' in sys.argv:
         u=None
     else:
-        u='http://localhost:4444/'
+        # u='http://localhost:4444/'
+        u='https://user225847803-m4cnctou.wormhole.vk-apps.com/'
 
-    direct.setup(u)
+    threading.Thread(target=lambda:direct.setup(u)).start()
 
     # port=4032
     if not os.fork():
@@ -89,46 +90,6 @@ if __name__ == '__main__':
         # tg_api=tg.Api(tg_token)
         # api=tg.Api(token)
         def run(q,e,pipe):
-            # pipe_buffer=b''
-            # t=time.time()
-            # l=0
-            # tt=time.time()
-            # while 1:
-            #     try:
-            #         pipe_buffer+=os.read(pipe,relay.buffer_size)
-            #     except BlockingIOError:
-            #         pass
-            #     ic(len(pipe_buffer),pipe_buffer[:32],pipe_buffer[-32:])
-            #     [*data, pipe_buffer]=pipe_buffer.split(b'^')
-            #     count={}
-            #     for w in data:
-            #         time.sleep(max(t-time.time()+1/8,0))
-            #         t=time.time()
-            #         ic(w[:32],w[-32:],relay.bytes_hash(w))
-            #         bw=w
-            #         w=json.loads(w.decode())
-            #         p=e
-            #         if w['event']=='new':
-            #             if w['id'] not in count:
-            #                 count[w['id']]=0
-            #         if w['event']=='got':
-            #             if w['id'] not in count:
-            #                 count[w['id']]=0
-            #             if count[w['id']]>1024:
-            #                 p=q
-            #             count[w['id']]+=len(w['data'])
-            #         if w['event']=='del':
-            #             if w['id'] in count:
-            #                 del count[w['id']]
-            #         if p==e:
-            #             if l>1024:
-            #                 p=q
-            #             l+=len(bw)
-            #             if time.time()-tt>1:
-            #                 l=0
-            #         p=e
-            #         p.put(bw+b'^')
-            #     ic(q.qsize(),e.qsize())
             tmp=b''
             while 1:
                 q.put(tmp)
@@ -163,43 +124,6 @@ if __name__ == '__main__':
     #     q=queue.Queue()
     #     e=queue.Queue()
     #     s=queue.Queue()
-    #     def run(q,e,pipe,s):
-    #         # pipe_buffer=b''
-    #         # t=time.time()
-    #         # l=0
-    #         # tt=time.time()
-    #         # while s.empty():
-    #         #     try:
-    #         #         pipe_buffer+=os.read(pipe,relay.buffer_size)
-    #         #     except BlockingIOError:
-    #         #         pass
-    #         #     ic(len(pipe_buffer),pipe_buffer[:32],pipe_buffer[-32:])
-    #         #     [*data, pipe_buffer]=pipe_buffer.split(b'^')
-    #         #     count={}
-    #         #     for w in data:
-    #         #         time.sleep(time.time()-t+1/8)
-    #         #         t=time.time()
-    #         #         ic(w[:32],w[-32:],relay.bytes_hash(w))
-    #         #         bw=w
-    #         #         w=json.loads(w.decode())
-    #         #         p=e
-    #         #         if w['event']=='new':
-    #         #             if w['id'] not in count:
-    #         #                 count[w['id']]=0
-    #         #         if w['event']=='got':
-    #         #             if count[w['id']]>1024:
-    #         #                 p=q
-    #         #             count[w['id']]+=len(w['data'])
-    #         #         if w['event']=='del':
-    #         #             if w['id'] in count:
-    #         #                 del count[w['id']]
-    #         #         if p==e:
-    #         #             if l>1024:
-    #         #                 p=q
-    #         #             l+=len(bw)
-    #         #             if time.time()-tt>1:
-    #         #                 l=0
-    #         #         p.put(bw)
     #         tmp=b''
     #         while s.empty():
     #             q.put(tmp)

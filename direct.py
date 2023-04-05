@@ -1,9 +1,22 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
-from urllib.request import urlopen
+# from urllib.request import urlopen
 from ic import ic
 import traceback
 import server_example
+from traceback import format_exc
+
+def polyhash(q):
+    import pickle
+    d=pickle.dumps(q)
+    r=0
+    for w in d:
+        r*=257
+        r+=w
+        r&=0xFFFFFFFFFFFFFFFF
+    r%=10**6
+    return r
+
 # def send_loop(q,port):
 #     while 1:
 #         try:
@@ -49,7 +62,11 @@ import threading
 
 from queue import Queue,Empty
 
+import subprocess
+
 import json
+
+import base64
 
 q=[Queue(),Queue()]
 
@@ -59,10 +76,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
-        ic(self.path)
+        # ic(self.path)
         n=int(self.path[1])
-        ic(n)
+        # ic(n)
         data=[]
+<<<<<<< HEAD
         for w in range(2):
             try:
                 while 1:
@@ -74,21 +92,36 @@ class Handler(BaseHTTPRequestHandler):
                 pass
             if w==0:
                 time.sleep(0.01)
+=======
+        try:
+            # while 1:
+            #     if data:
+            #         data.append(q[n].get_nowait())
+            #     else:
+                    data.append(q[n].get(timeout=300))
+        except Empty:
+            pass
+>>>>>>> 66f66adc4c863a321a8df14a17b99ce0ba8273a2
         data=b''.join(data)
-        ic(n,data)
+        # ic(n,polyhash(data))
+        # ic(n,data)
         self.wfile.write(data)
 
     def do_POST(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
-        ic(self.path)
+        # ic(self.path)
         d_len=int(self.headers['Content-Length'])
         data=self.rfile.read(d_len)
         n=int(self.path[1])
-        ic(n,data)
+        # ic(n,data)
+        # ic(n,polyhash(data))
         q[1-n].put(data)
         self.wfile.write(b'ok')
+
+    def log_message(*args):
+        pass
 
 class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
     pass
@@ -97,7 +130,26 @@ def setup(u=None):
     ic(u)
     if u==None:
         server = ThreadingSimpleServer(('0.0.0.0', 4444), Handler)
-        server.serve_forever()
+        try:
+            server.serve_forever()
+        except:
+            pass
+
+def _urlopen(u,data=None):
+    # a=subprocess.run(['curl','-s','--noproxy','*',u]+([] if data==None else ['-d',data]),stdout=subprocess.PIPE)
+    # if a.returncode:
+    #     time.sleep(1)
+    # return a.stdout
+    from urllib.request import urlopen
+    try:
+        a=urlopen(u,data).read()
+        return a
+    except Exception:
+        print(format_exc())
+        time.sleep(1)
+
+
+
 
 def recv_loop(q,u=None):
     n='0'
@@ -105,9 +157,16 @@ def recv_loop(q,u=None):
         n='1'
         u='http://localhost:4444/'
     while 1:
-        data=urlopen(u+n).read()
-        ic(data)
-        q.put(data)
+        try:
+            data=_urlopen(u+n)
+            if data:
+                ic(polyhash(data))
+                data=base64.b64decode(data)
+                # ic(data)
+                q.put(data)
+        except Exception:
+            print(format_exc())
+
 
 def send_loop(q,u=None):
     buff=b''
@@ -116,21 +175,26 @@ def send_loop(q,u=None):
         n='1'
         u='http://localhost:4444/'
     while 1:
-        data=[buff]
-        buff=b''
         try:
-            while 1:
-                if data:
-                    data.append(q.get_nowait())
-                else:
-                    data.append(q.get())
-        except Empty:
-            pass
-        data=b''.join(data)
-        if data:
-            data,buff=data[:1024],data[1024:]
-            ic(data)
-            urlopen(u+n,data=data).read()
+            data=buff
+            buff=b''
+            try:
+                while 1:
+                    if data:
+                        data+=q.get_nowait()
+                    else:
+                        data+=q.get()
+            except Empty:
+                pass
+            if data:
+                m_len=256**3
+                data,buff=data[:m_len],data[m_len:]
+                # ic(data)
+                data=base64.b64encode(data)
+                ic(polyhash(data))
+                _urlopen(u+n,data=data)
+        except Exception:
+            print(format_exc())
 
 
 
