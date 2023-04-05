@@ -80,6 +80,19 @@ class Handler(BaseHTTPRequestHandler):
         n=int(self.path[1])
         # ic(n)
         data=[]
+<<<<<<< HEAD
+        for w in range(2):
+            try:
+                while 1:
+                    if data:
+                        data.append(q[n].get_nowait())
+                    else:
+                        data.append(q[n].get(timeout=1))
+            except Empty:
+                pass
+            if w==0:
+                time.sleep(0.01)
+=======
         try:
             # while 1:
             #     if data:
@@ -88,6 +101,7 @@ class Handler(BaseHTTPRequestHandler):
                     data.append(q[n].get(timeout=300))
         except Empty:
             pass
+>>>>>>> 66f66adc4c863a321a8df14a17b99ce0ba8273a2
         data=b''.join(data)
         # ic(n,polyhash(data))
         # ic(n,data)
