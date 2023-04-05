@@ -79,30 +79,18 @@ class Handler(BaseHTTPRequestHandler):
         # ic(self.path)
         n=int(self.path[1])
         # ic(n)
-        data=[]
-<<<<<<< HEAD
+        data=b''
         for w in range(2):
+            if w:
+                time.sleep(0.01)
             try:
                 while 1:
                     if data:
-                        data.append(q[n].get_nowait())
+                        data+=q.get_nowait()
                     else:
-                        data.append(q[n].get(timeout=1))
+                        data+=q.get(timeout=150)
             except Empty:
                 pass
-            if w==0:
-                time.sleep(0.01)
-=======
-        try:
-            # while 1:
-            #     if data:
-            #         data.append(q[n].get_nowait())
-            #     else:
-                    data.append(q[n].get(timeout=300))
-        except Empty:
-            pass
->>>>>>> 66f66adc4c863a321a8df14a17b99ce0ba8273a2
-        data=b''.join(data)
         # ic(n,polyhash(data))
         # ic(n,data)
         self.wfile.write(data)
@@ -160,7 +148,7 @@ def recv_loop(q,u=None):
         try:
             data=_urlopen(u+n)
             if data:
-                ic(polyhash(data))
+                ic(len(data),polyhash(data))
                 data=base64.b64decode(data)
                 # ic(data)
                 q.put(data)
@@ -178,20 +166,23 @@ def send_loop(q,u=None):
         try:
             data=buff
             buff=b''
-            try:
-                while 1:
-                    if data:
-                        data+=q.get_nowait()
-                    else:
-                        data+=q.get()
-            except Empty:
-                pass
+            for w in range(2):
+                if w:
+                    time.sleep(0.01)
+                try:
+                    while 1:
+                        if data:
+                            data+=q.get_nowait()
+                        else:
+                            data+=q.get()
+                except Empty:
+                    pass
             if data:
                 m_len=256**3
                 data,buff=data[:m_len],data[m_len:]
                 # ic(data)
                 data=base64.b64encode(data)
-                ic(polyhash(data))
+                ic(len(data),polyhash(data))
                 _urlopen(u+n,data=data)
         except Exception:
             print(format_exc())
