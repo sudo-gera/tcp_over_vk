@@ -63,14 +63,17 @@ class Handler(BaseHTTPRequestHandler):
         n=int(self.path[1])
         ic(n)
         data=[]
-        try:
-            while 1:
-                if data:
-                    data.append(q[n].get_nowait())
-                else:
-                    data.append(q[n].get(timeout=1))
-        except Empty:
-            pass
+        for w in range(2):
+            try:
+                while 1:
+                    if data:
+                        data.append(q[n].get_nowait())
+                    else:
+                        data.append(q[n].get(timeout=1))
+            except Empty:
+                pass
+            if w==0:
+                time.sleep(0.01)
         data=b''.join(data)
         ic(n,data)
         self.wfile.write(data)
