@@ -37,7 +37,7 @@ if __name__ == '__main__':
         u=None
     else:
         # u='http://localhost:4444/'
-        u='https://user225847803-m4cnctou.wormhole.vk-apps.com/'
+        u='https://user225847803-llqyuk5e.wormhole.vk-apps.com/'
 
     threading.Thread(target=lambda:direct.setup(u)).start()
 
@@ -172,7 +172,7 @@ if __name__ == '__main__':
         s.add_pipe(pipe)
         if list(tokens).index(token):
             # ic(os.getpid())
-            s.create_server('',8081)
+            s.create_server('',8082)
         try:
             s.main_loop()
         except KeyboardInterrupt:
