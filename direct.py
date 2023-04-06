@@ -76,7 +76,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
-        # ic(self.path)
+        ic(self.path)
         n=int(self.path[1])
         # ic(n)
         data=b''
@@ -86,12 +86,12 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 while 1:
                     if data:
-                        data+=q.get_nowait()
+                        data+=q[n].get_nowait()
                     else:
-                        data+=q.get(timeout=150)
+                        data+=q[n].get(timeout=150)
             except Empty:
                 pass
-        # ic(n,polyhash(data))
+        ic(n,len(data),polyhash(data))
         # ic(n,data)
         self.wfile.write(data)
 
@@ -99,12 +99,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
-        # ic(self.path)
+        ic(self.path)
         d_len=int(self.headers['Content-Length'])
         data=self.rfile.read(d_len)
         n=int(self.path[1])
         # ic(n,data)
-        # ic(n,polyhash(data))
+        ic(n,len(data),polyhash(data))
         q[1-n].put(data)
         self.wfile.write(b'')
 
