@@ -69,6 +69,8 @@ import json
 import base64
 
 q=[Queue(),Queue()]
+buff=b''
+m_len=256**3
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -79,18 +81,26 @@ class Handler(BaseHTTPRequestHandler):
         ic(self.path)
         n=int(self.path[1])
         # ic(n)
-        data=b''
-        for w in range(2):
+        global buff
+        data=buff
+        buff=b''
+        f=[0,0]
+        for w in f:
             if w:
                 time.sleep(0.01)
-            try:
-                while 1:
-                    if data:
+            while 1:
+                if data:
+                    try:
                         data+=q[n].get_nowait()
-                    else:
-                        data+=q[n].get(timeout=150)
-            except Empty:
-                pass
+                    except Empty:
+                        break
+                else:
+                    try:
+                        data+=q[n].get(timeout=30)
+                    except Empty:
+                        f=[]
+                        break
+        data,buff=data[:m_len],data[m_len:]
         ic(n,len(data),polyhash(data))
         # ic(n,data)
         self.wfile.write(data)
@@ -106,7 +116,7 @@ class Handler(BaseHTTPRequestHandler):
         # ic(n,data)
         ic(n,len(data),polyhash(data))
         q[1-n].put(data)
-        self.wfile.write(b'')
+        self.wfile.write(str(len(data).bit_length()).encode())
 
     def log_message(*args):
         pass
@@ -178,7 +188,6 @@ def send_loop(q,u=None):
                 except Empty:
                     pass
             if data:
-                m_len=256**3
                 data,buff=data[:m_len],data[m_len:]
                 # ic(data)
                 data=base64.b64encode(data)
