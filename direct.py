@@ -69,6 +69,8 @@ import json
 import base64
 
 q=[Queue(),Queue()]
+buff=b''
+m_len=256**3
 
 class Handler(BaseHTTPRequestHandler):
 
@@ -76,20 +78,30 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
-        # ic(self.path)
+        ic(self.path)
         n=int(self.path[1])
         # ic(n)
-        data=[]
-        try:
-            # while 1:
-            #     if data:
-            #         data.append(q[n].get_nowait())
-            #     else:
-                    data.append(q[n].get(timeout=300))
-        except Empty:
-            pass
-        data=b''.join(data)
-        # ic(n,polyhash(data))
+        global buff
+        data=buff
+        buff=b''
+        f=[0,0]
+        for w in f:
+            if w:
+                time.sleep(0.01)
+            while 1:
+                if data:
+                    try:
+                        data+=q[n].get_nowait()
+                    except Empty:
+                        break
+                else:
+                    try:
+                        data+=q[n].get(timeout=30)
+                    except Empty:
+                        f=[]
+                        break
+        data,buff=data[:m_len],data[m_len:]
+        ic(n,len(data),polyhash(data))
         # ic(n,data)
         self.wfile.write(data)
 
@@ -97,14 +109,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
-        # ic(self.path)
+        ic(self.path)
         d_len=int(self.headers['Content-Length'])
         data=self.rfile.read(d_len)
         n=int(self.path[1])
         # ic(n,data)
-        # ic(n,polyhash(data))
+        ic(n,len(data),polyhash(data))
         q[1-n].put(data)
-        self.wfile.write(b'ok')
+        self.wfile.write(str(len(data).bit_length()).encode())
 
     def log_message(*args):
         pass
@@ -146,7 +158,7 @@ def recv_loop(q,u=None):
         try:
             data=_urlopen(u+n)
             if data:
-                ic(polyhash(data))
+                ic(len(data),polyhash(data))
                 data=base64.b64decode(data)
                 # ic(data)
                 q.put(data)
@@ -164,20 +176,22 @@ def send_loop(q,u=None):
         try:
             data=buff
             buff=b''
-            try:
-                while 1:
-                    if data:
-                        data+=q.get_nowait()
-                    else:
-                        data+=q.get()
-            except Empty:
-                pass
+            for w in range(2):
+                if w:
+                    time.sleep(0.01)
+                try:
+                    while 1:
+                        if data:
+                            data+=q.get_nowait()
+                        else:
+                            data+=q.get()
+                except Empty:
+                    pass
             if data:
-                m_len=256**3
                 data,buff=data[:m_len],data[m_len:]
                 # ic(data)
                 data=base64.b64encode(data)
-                ic(polyhash(data))
+                ic(len(data),polyhash(data))
                 _urlopen(u+n,data=data)
         except Exception:
             print(format_exc())
