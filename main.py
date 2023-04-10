@@ -172,7 +172,7 @@ if __name__ == '__main__':
         s.add_pipe(pipe)
         if list(tokens).index(token):
             # ic(os.getpid())
-            s.create_server('',8081)
+            s.create_server('',8082)
         try:
             s.main_loop()
         except KeyboardInterrupt:
