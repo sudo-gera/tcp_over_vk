@@ -3,7 +3,7 @@ import asyncio
 import aiohttp
 import time
 import json
-import pickle
+# import pickle
 import aiohttp.web
 import base64
 from ic import ic
@@ -81,9 +81,15 @@ class connection(asyncio.Protocol):
                     async with session.post(f'''{http_connect}/{self.name}''', data=data) as resp:
                         pass
     def t2h_put(self,data):
-        asyncio.create_task(self.t2h.put(base64.b64encode(pickle.dumps(data))))
+        if 'data' in data:
+            data['data']=base64.b64encode(data['data']).decode()
+        data=json.dumps(data)
+        asyncio.create_task(self.t2h.put(data))
     def h2t_put(self,data):
-        asyncio.create_task(self.h2t.put(pickle.loads(base64.b64decode(data))))
+        data=json.loads(data)
+        if 'data' in data:
+            data['data']=base64.b64decode(data['data'])
+        asyncio.create_task(self.h2t.put(data))
     def connection_made(self, transport: asyncio.Transport) -> None:
         ic(self.name)
         self.transport=transport
