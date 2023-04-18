@@ -51,7 +51,7 @@ import random
 
 c=0
 
-num=1
+num=100
 
 def militime():
     s=time.asctime().split()
@@ -73,7 +73,7 @@ def randbytes(l):
 
 rs={randbytes(65536) for w in range(num)}
 
-url='https://user225847803-kimyq256.wormhole.vk-apps.com/'
+url='https://user225847803-2yl2j4hf.wormhole.vk-apps.com/'
 # url='http://localhost:7003/'
 
 async def f(session : aiohttp.ClientSession):
