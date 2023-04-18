@@ -92,6 +92,9 @@ class Server:
         self.input[client]={
             'on_event': self.on_event,
             'id': client_id,
+            'buffer': {},
+            'recv_count': 0,
+            'send_count': 0,
         }
         self.pipe_send({
             'event': 'new',
@@ -122,10 +125,13 @@ class Server:
     def on_recv(self,client,data):
         data=data
         client_id=self.input[client]['id']
+        num=self.input[client]['recv_count']
+        self.input[client]['recv_count']=num+1
         self.pipe_send({
             'event': 'got',
             'id': client_id,
-            'data': data
+            'data': data,
+            'num': num,
         })
 
     def pipe_send(self,w):
@@ -196,6 +202,9 @@ class Server:
             self.input[client]={
                 'id': client_id,
                 'on_event': self.on_event,
+                'buffer': {},
+                'recv_count': 0,
+                'send_count': 0,
             }
         if w['event']=='got':
             try:
