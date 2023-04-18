@@ -1,5 +1,7 @@
 import asyncio
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
 import time
 import random
 
@@ -42,6 +44,7 @@ async def main():
 
 asyncio.run(main())
 =======
+>>>>>>> 221e66b615c28ae6dc9dd846767b1c13d9ea0502
 import asyncio.locks
 from aiohttp import web
 import time
@@ -49,7 +52,11 @@ import random
 import json
 
 c=0
+<<<<<<< HEAD
+num=100
+=======
 num=1
+>>>>>>> 221e66b615c28ae6dc9dd846767b1c13d9ea0502
 
 def militime():
     s=time.asctime().split()
@@ -101,4 +108,7 @@ app.add_routes([web.get('/', hello),web.get('/time', timesync),
 
 web.run_app(app, port=7003)
 
+<<<<<<< HEAD
+=======
 >>>>>>> b735584cfc773161e853eaa65201f22ba0bc974c
+>>>>>>> 221e66b615c28ae6dc9dd846767b1c13d9ea0502

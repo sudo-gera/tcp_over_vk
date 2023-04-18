@@ -37,7 +37,8 @@ if __name__ == '__main__':
         u=None
     else:
         # u='http://localhost:4444/'
-        u='https://user225847803-f5idigl4.wormhole.vk-apps.com/'
+        # u='http://172.30.1.136:4444'
+        u='https://user225847803-lsh3jbwp.wormhole.vk-apps.com/'
 
     threading.Thread(target=lambda:direct.setup(u)).start()
 

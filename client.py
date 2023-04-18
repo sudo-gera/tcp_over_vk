@@ -1,4 +1,6 @@
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
 import asyncio
 
 _data=0
@@ -42,6 +44,7 @@ async def main():
     finally:
         transport.close()
 =======
+>>>>>>> 221e66b615c28ae6dc9dd846767b1c13d9ea0502
 import aiohttp
 import asyncio
 import time
@@ -51,7 +54,11 @@ import random
 
 c=0
 
+<<<<<<< HEAD
+num=1
+=======
 num=100
+>>>>>>> 221e66b615c28ae6dc9dd846767b1c13d9ea0502
 
 def militime():
     s=time.asctime().split()
@@ -73,6 +80,10 @@ def randbytes(l):
 
 rs={randbytes(65536) for w in range(num)}
 
+<<<<<<< HEAD
+# url='https://user225847803-kimyq256.wormhole.vk-apps.com/'
+=======
+>>>>>>> 221e66b615c28ae6dc9dd846767b1c13d9ea0502
 url='https://user225847803-2yl2j4hf.wormhole.vk-apps.com/'
 # url='http://localhost:7003/'
 
@@ -107,7 +118,10 @@ async def main():
             print(times[3]-times[2])
 
 
+<<<<<<< HEAD
+=======
 >>>>>>> b735584cfc773161e853eaa65201f22ba0bc974c
+>>>>>>> 221e66b615c28ae6dc9dd846767b1c13d9ea0502
 
 
 asyncio.run(main())
