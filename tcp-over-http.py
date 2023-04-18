@@ -59,7 +59,7 @@ class connection(asyncio.Protocol):
             *tcp_connect)
     async def recv(self):
         if http_connect:
-            async with aiohttp.ClientSession(trust_env=True) as session:
+            async with aiohttp.ClientSession(trust_env=False) as session:
                 while self.work:
                     try:
                         async with session.get(f'''{http_connect}/{self.name}''') as resp:
@@ -67,15 +67,13 @@ class connection(asyncio.Protocol):
                             ic(len(data))
                             for d in data.split(b'^')[:-1]:
                                 self.h2t_put(d)
-                          # ic(self.name,data)
-                            # self.h2t_put(data)
                     except asyncio.exceptions.TimeoutError:
                         pass
                     except aiohttp.client_exceptions.ServerDisconnectedError:
                         exit()
     async def send(self):
         if http_connect:
-            async with aiohttp.ClientSession(trust_env=True) as session:
+            async with aiohttp.ClientSession(trust_env=False) as session:
                 while self.work:
                     data=await self.t2h.get()+b'^'
                     await asyncio.sleep(0.03)
@@ -111,21 +109,22 @@ class connection(asyncio.Protocol):
             'event':'got',
             'data':data,
         }))
-    async def later(self,coro):
-        await asyncio.sleep(4)
+    async def later(self,coro,t):
+        await asyncio.sleep(t)
         await coro
     def eof_received(self) -> None:
       # ic()
         asyncio.create_task(self.later(self.enum_put({
             'event':'eof',
-        })))
+        }),4))
     def connection_lost(self, exc: Exception | None) -> None:
       # ic()
         asyncio.create_task(self.later(self.enum_put({
             'event':'del',
-        })))
+        }),4))
         self.transport.close()
         self.work=0
+        asyncio.create_task(self.later(self.remove(),16))
     async def enum_put(self, data: dict) -> None:
         async with self.lock:
             num=self.send_num
@@ -134,6 +133,9 @@ class connection(asyncio.Protocol):
             self.t2h_put({
                 'num': num,
             }|data)
+    async def remove(self):
+        if self.name in connections:
+            del connections[self.name]
     async def enum_get(self):
         while self.work:
             ev=await self.h2t.get()
@@ -156,6 +158,7 @@ class connection(asyncio.Protocol):
                         if ev['event']=='del':
                             self.transport.close()
                             self.work=0
+                            asyncio.create_task(self.later(self.remove(),16))
                     else:
                       # ic(num,ev)
                         break
