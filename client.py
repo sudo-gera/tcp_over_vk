@@ -1,3 +1,50 @@
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+import asyncio
+
+_data=0
+
+class EchoClientProtocol(asyncio.Protocol):
+    def __init__(self, message, on_con_lost):
+        self.message = message
+        self.on_con_lost = on_con_lost
+
+    def connection_made(self, transport):
+        global _data
+        _data=self.message
+        transport.write(self.message.encode())
+        print('Data sent: {!r}'.format(self.message))
+
+    def data_received(self, data):
+        print('Data received: {!r}'.format(data.decode()))
+        assert data.decode()==_data
+
+    def connection_lost(self, exc):
+        print('The server closed the connection')
+        self.on_con_lost.set_result(True)
+
+
+async def main():
+    # Get a reference to the event loop as we plan to use
+    # low-level APIs.
+    loop = asyncio.get_running_loop()
+
+    on_con_lost = loop.create_future()
+    message = 'Hello World!'+str(hash('-'))
+
+    transport, protocol = await loop.create_connection(
+        lambda: EchoClientProtocol(message, on_con_lost),
+        '127.0.0.1', 8888)
+
+    # Wait until the protocol signals that the connection
+    # is lost and close the transport.
+    try:
+        await on_con_lost
+    finally:
+        transport.close()
+=======
+>>>>>>> 221e66b615c28ae6dc9dd846767b1c13d9ea0502
 import aiohttp
 import asyncio
 import time
@@ -7,7 +54,11 @@ import random
 
 c=0
 
+<<<<<<< HEAD
 num=1
+=======
+num=100
+>>>>>>> 221e66b615c28ae6dc9dd846767b1c13d9ea0502
 
 def militime():
     s=time.asctime().split()
@@ -29,7 +80,10 @@ def randbytes(l):
 
 rs={randbytes(65536) for w in range(num)}
 
+<<<<<<< HEAD
 # url='https://user225847803-kimyq256.wormhole.vk-apps.com/'
+=======
+>>>>>>> 221e66b615c28ae6dc9dd846767b1c13d9ea0502
 url='https://user225847803-2yl2j4hf.wormhole.vk-apps.com/'
 # url='http://localhost:7003/'
 
@@ -64,6 +118,10 @@ async def main():
             print(times[3]-times[2])
 
 
+<<<<<<< HEAD
+=======
+>>>>>>> b735584cfc773161e853eaa65201f22ba0bc974c
+>>>>>>> 221e66b615c28ae6dc9dd846767b1c13d9ea0502
 
 
 asyncio.run(main())
