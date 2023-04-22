@@ -147,7 +147,7 @@ class connection(asyncio.Protocol):
         async with conn_lock:
             if self.name in connections:
                 connections[self.name]=None
-        asyncio.create_task(self.later(self.remove_later()),16)
+        asyncio.create_task(self.later(self.remove_later(),16))
     async def remove_later(self):
         self.dget.cancel()
         self.push.cancel()
