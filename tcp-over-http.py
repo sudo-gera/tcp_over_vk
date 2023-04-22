@@ -144,12 +144,14 @@ class connection(asyncio.Protocol):
     async def remove(self):
         self.transport.close()
         self.work=0
-        self.dget.cancel()
-        self.push.cancel()
-        self.poll.cancel()
         async with conn_lock:
             if self.name in connections:
                 connections[self.name]=None
+        asyncio.create_task(self.later(self.remove_later()),16)
+    async def remove_later(self):
+        self.dget.cancel()
+        self.push.cancel()
+        self.poll.cancel()
     async def enum_get(self):
         while self.work:
             ev=await self.h2t.get()
