@@ -1,3 +1,4 @@
+from __future__ import annotations
 import argparse
 import asyncio
 import aiohttp
@@ -7,33 +8,29 @@ import json
 import aiohttp.web
 import base64
 from ic import ic
+import sys
+import urllib.request
 
-def parse_args() -> list[None | tuple[str, int]]:
-    p = argparse.ArgumentParser()
-    p.add_argument('--tcp-listen')
-    p.add_argument('--tcp-connect')
-    p.add_argument('--http-listen')
-    p.add_argument('--http-connect')
-    p = vars(p.parse_args())
-    return [
-        None if w is None else
-        (
-            w[:-1] if w.endswith('/') else w
-        )if q=='http_connect' else(
-            tuple([
-                int(r)
-                if e else r
-            for e, r in enumerate((':'+w).split(':')[-2:])])
-        )
-    for q, w in p.items()]
+if len(sys.argv)!=3:
+    print(f'''to start server: {sys.argv[0]} [tcp-connect-host:]tcp-connect-port [http-listen-host:]http-listen-port''')
+    print(f'''to start client: {sys.argv[0]} [tcp-listen-host:]tcp-listen-port http(s)://-started-url''')
+    exit(1)
 
+if sys.argv[2].startswith('http'):
+    tcp_listen=(':'+sys.argv[1]).split(':')[-2:]
+    tcp_connect=None
+    http_listen=None
+    http_connect=sys.argv[2]
+else:
+    tcp_listen=None
+    tcp_connect=(':'+sys.argv[1]).split(':')[-2:]
+    http_listen=('0.0.0.0:'+sys.argv[2]).split(':')[-2:]
+    http_connect=None
 
-tcp_listen,\
-    tcp_connect,\
-    http_listen,\
-    http_connect = parse_args()
+connections:dict[str,connection]={}
+conn_lock=asyncio.Lock()
 
-connections={}
+conn_time=6*3600
 
 class connection(asyncio.Protocol):
     def __init__(self,name=None,):
@@ -50,40 +47,53 @@ class connection(asyncio.Protocol):
         self.work=1
         self.recv_buff=[]
         self.poll=asyncio.create_task(self.recv())
-        self.poll=asyncio.create_task(self.send())
+        self.push=asyncio.create_task(self.send())
         self.dget=asyncio.create_task(self.enum_get())
     async def connect(self):
         loop = asyncio.get_running_loop()
         await loop.create_connection(
             lambda: self,
             *tcp_connect)
+    def recv_data(self,data):
+        if not data.endswith(b'^'):
+            print(data)
+            print('wrong server response')
+            exit(1)
+        ic(len(data),connections_len())
+        for d in data.split(b'^')[:-1]:
+            if d:
+                self.h2t_put(d)
+            else:
+                asyncio.create_task(self.remove())
+    async def send_data(self):
+        data=await self.t2h.get()+b'^'
+        await asyncio.sleep(0.03)
+        try:
+            while self.work:
+                data+=self.t2h.get_nowait()+b'^'
+        except asyncio.QueueEmpty:
+            pass
+        ic(len(data),connections_len())
+        return data
     async def recv(self):
         if http_connect:
-            async with aiohttp.ClientSession(trust_env=False) as session:
+            async with aiohttp.ClientSession(trust_env=True) as session:
                 while self.work:
                     try:
-                        async with session.get(f'''{http_connect}/{self.name}''') as resp:
+                        async with session.get(f'''{http_connect}/{self.name}''',timeout=aiohttp.ClientTimeout(total=1)) as resp:
                             data=await resp.read()
-                            ic(len(data))
-                            for d in data.split(b'^')[:-1]:
-                                self.h2t_put(d)
+                            self.recv_data(data)
                     except asyncio.exceptions.TimeoutError:
+                        ic()
                         pass
                     except aiohttp.client_exceptions.ServerDisconnectedError:
                         exit()
     async def send(self):
         if http_connect:
-            async with aiohttp.ClientSession(trust_env=False) as session:
+            async with aiohttp.ClientSession(trust_env=True) as session:
                 while self.work:
-                    data=await self.t2h.get()+b'^'
-                    await asyncio.sleep(0.03)
-                    try:
-                        while self.work:
-                            data+=self.t2h.get_nowait()+b'^'
-                    except asyncio.QueueEmpty:
-                        pass
+                    data=await self.send_data()
                   # ic(self.name,data)
-                    ic(len(data))
                     async with session.post(f'''{http_connect}/{self.name}''', data=data) as resp:
                         pass
     def t2h_put(self,data):
@@ -122,9 +132,7 @@ class connection(asyncio.Protocol):
         asyncio.create_task(self.later(self.enum_put({
             'event':'del',
         }),4))
-        self.transport.close()
-        self.work=0
-        asyncio.create_task(self.later(self.remove(),16))
+        asyncio.create_task(self.remove())
     async def enum_put(self, data: dict) -> None:
         async with self.lock:
             num=self.send_num
@@ -134,8 +142,14 @@ class connection(asyncio.Protocol):
                 'num': num,
             }|data)
     async def remove(self):
-        if self.name in connections:
-            del connections[self.name]
+        self.transport.close()
+        self.work=0
+        self.dget.cancel()
+        self.push.cancel()
+        self.poll.cancel()
+        async with conn_lock:
+            if self.name in connections:
+                connections[self.name]=None
     async def enum_get(self):
         while self.work:
             ev=await self.h2t.get()
@@ -156,51 +170,64 @@ class connection(asyncio.Protocol):
                         if ev['event']=='eof':
                             self.transport.write_eof()
                         if ev['event']=='del':
-                            self.transport.close()
-                            self.work=0
-                            asyncio.create_task(self.later(self.remove(),16))
+                            await self.remove()
+                            # asyncio.create_task(self.later(self.remove(),16))
                     else:
                       # ic(num,ev)
                         break
                 self.recv_buff=[(num,ev) for num,ev in self.recv_buff if num>=self.recv_num]
 
+def connections_len():
+    return len([w for q,w in connections.items() if w is not None])
+
+async def get_connection(name):
+    async with conn_lock:
+        try:
+            name=float(name)
+        except:
+            return None
+        t=time.time()
+        global connections
+        connections={q:w for q,w in connections.items() if w is not None or q+conn_time>t}
+        if name in connections:
+            return connections[name]
+        if time.time()-conn_time>name:
+            return None
+        connections[name]=connection(name)
+        await connections[name].connect()
+        return connections[name]
+
 
 async def recv(req):
     name=req.match_info['name']
-    if name not in connections:
-        connections[name]=connection(name)
-        await connections[name].connect()
+    conn=await get_connection(name)
+    if conn is None:
+        return aiohttp.web.Response(text='^')
     data=await req.read()
-    ic(len(data))
-  # ic(name,data)
-    for d in data.split(b'^')[:-1]:
-        connections[name].h2t_put(d)
+    conn.recv_data(data)
     return aiohttp.web.Response(text=bin(len(data))[2:])
 
 async def send(req):
     name=req.match_info['name']
-    if name not in connections:
-        connections[name]=connection(name)
-        await connections[name].connect()
-    data=await connections[name].t2h.get()+b'^'
-    await asyncio.sleep(0.03)
-    try:
-        while connections[name].work:
-            data+=connections[name].t2h.get_nowait()+b'^'
-    except asyncio.QueueEmpty:
-        pass
-    ic(len(data))
-  # ic(name,data)
+    conn=await get_connection(name)
+    if conn is None:
+        return aiohttp.web.Response(text='^')
+    data=await conn.send_data()
     return aiohttp.web.Response(body=data)
+
+async def get_time(req):
+    return aiohttp.web.Response(text=str(time.time()))
 
 if http_listen:
     app = aiohttp.web.Application()
     app.add_routes([
+        aiohttp.web.get('/', get_time),
         aiohttp.web.post('/{name}', recv),
         aiohttp.web.get('/{name}', send),
     ])
     aiohttp.web.run_app(app, host=http_listen[0], port=http_listen[1])
 if http_connect:
+    # http_client_name=urllib.request.urlopen(http_connect).read()
     async def main():
         loop = asyncio.get_running_loop()
         server = await loop.create_server(
@@ -209,4 +236,7 @@ if http_connect:
         async with server:
             await server.serve_forever()
         await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
