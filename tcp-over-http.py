@@ -51,7 +51,7 @@ class connection(asyncio.Protocol):
         self.dget=asyncio.create_task(self.enum_get())
     async def connect(self):
         loop = asyncio.get_running_loop()
-        ic(tcp_connect)
+        #ic(tcp_connect)
         await loop.create_connection(
             lambda: self,
             *tcp_connect)
