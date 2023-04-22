@@ -80,7 +80,7 @@ class connection(asyncio.Protocol):
             async with aiohttp.ClientSession(trust_env=True) as session:
                 while self.work:
                     try:
-                        async with session.get(f'''{http_connect}/{self.name}''',timeout=aiohttp.ClientTimeout(total=1)) as resp:
+                        async with session.get(f'''{http_connect}/{self.name}''') as resp:
                             data=await resp.read()
                             self.recv_data(data)
                     except asyncio.exceptions.TimeoutError:
