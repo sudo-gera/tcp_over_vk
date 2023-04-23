@@ -32,6 +32,13 @@ conn_lock=asyncio.Lock()
 
 conn_time=6*3600
 
+async def async_later(coro,time):
+    await asyncio.sleep(time)
+    await coro
+
+def later(coro,time):
+    asyncio.create_task(async_later(coro,time))    
+
 class connection(asyncio.Protocol):
     def __init__(self,name=None,):
         super().__init__()
@@ -45,6 +52,7 @@ class connection(asyncio.Protocol):
         self.send_num=0
         self.recv_num=0
         self.work=1
+        self.tlen=0
         self.recv_buff=[]
         self.poll=asyncio.create_task(self.recv())
         self.push=asyncio.create_task(self.send())
@@ -61,6 +69,7 @@ class connection(asyncio.Protocol):
             print('wrong server response')
             exit(1)
         ic(len(data),connections_len())
+        self.tlen+=len(data)
         for d in data.split(b'^')[:-1]:
             if d:
                 self.h2t_put(d)
@@ -74,6 +83,7 @@ class connection(asyncio.Protocol):
                 data+=self.t2h.get_nowait()+b'^'
         except asyncio.QueueEmpty:
             pass
+        self.tlen+=len(data)
         ic(len(data),connections_len())
         return data
     async def recv(self):
@@ -116,23 +126,20 @@ class connection(asyncio.Protocol):
             })
     def data_received(self, data: bytes) -> None:
       # ic()
-        asyncio.create_task(self.enum_put({
+        later(self.enum_put({
             'event':'got',
             'data':data,
-        }))
-    async def later(self,coro,t):
-        await asyncio.sleep(t)
-        await coro
+        }),min(0.1,self.tlen//1638400))
     def eof_received(self) -> None:
       # ic()
-        asyncio.create_task(self.later(self.enum_put({
+        later(self.enum_put({
             'event':'eof',
-        }),4))
+        }),4)
     def connection_lost(self, exc: Exception | None) -> None:
       # ic()
-        asyncio.create_task(self.later(self.enum_put({
+        later(self.enum_put({
             'event':'del',
-        }),4))
+        }),4)
         asyncio.create_task(self.remove())
     async def enum_put(self, data: dict) -> None:
         async with self.lock:
@@ -148,7 +155,7 @@ class connection(asyncio.Protocol):
         async with conn_lock:
             if self.name in connections:
                 connections[self.name]=None
-        asyncio.create_task(self.later(self.remove_later(),16))
+        later(self.remove_later(),16)
     async def remove_later(self):
         self.dget.cancel()
         self.push.cancel()
