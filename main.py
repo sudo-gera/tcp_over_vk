@@ -1,6 +1,6 @@
 import pathlib
 import relay
-# import vk
+import vk
 import sys
 import os
 import random
@@ -10,7 +10,7 @@ import fcntl
 import io
 import re
 # import tg
-import direct
+# import direct
 import time
 import functools
 import queue
@@ -68,9 +68,9 @@ if __name__ == '__main__':
         try:
             # tg.recv_loop(api,q)
             # vk.recv_loop(api,q,tg_api)
-            # vk.recv_loop(api,q)
+            vk.recv_loop(api,q)
             # direct.recv_loop(q,port+([*tokens].index(token)))
-            direct.recv_loop(q,u)
+            # direct.recv_loop(q,u)
         except KeyboardInterrupt:
             pass
         # try:
@@ -106,9 +106,9 @@ if __name__ == '__main__':
         try:
             # tg.run_server(api,q)
             # vk.send_loop(api,q,tg_api)
-            # vk.send_loop(api,q)
+            vk.send_loop(api,q)
             # direct.send_loop(q,port+1-([*tokens].index(token)))
-            direct.send_loop(q,u)
+            # direct.send_loop(q,u)
         except KeyboardInterrupt:
             pass
         # try:
