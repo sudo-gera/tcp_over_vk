@@ -39,16 +39,35 @@ async def async_later(coro,time):
 def later(coro,time):
     asyncio.create_task(async_later(coro,time))    
 
+async def get_connection(name):
+    async with conn_lock:
+        try:
+            name=float(name)
+        except:
+            return None
+        t=time.time()
+        global connections
+        connections={q:w for q,w in connections.items() if w is not None or q+conn_time>t}
+        if name in connections:
+            return connections[name]
+        if time.time()-conn_time>name:
+            return None
+        connections[name]=connection(name)
+        await connections[name].connect()
+        return connections[name]
+
+t2h=asyncio.Queue()
+
 class connection(asyncio.Protocol):
     def __init__(self,name=None,):
         super().__init__()
         if name is None:
-            name=str(time.time())
+            name=time.time()
         connections[name]=self
         self.lock=asyncio.Lock()
         self.name=name
         self.h2t=asyncio.Queue()
-        self.t2h=asyncio.Queue()
+        self.t2h=t2h
         self.send_num=0
         self.recv_num=0
         self.work=1
@@ -66,11 +85,12 @@ class connection(asyncio.Protocol):
     def recv_data(self,data):
         if not data.endswith(b'^'):
             return
+        # ic(data)
         ic(len(data),connections_len())
         self.tlen+=len(data)
         for d in data.split(b'^')[:-1]:
             if d:
-                self.h2t_put(d)
+                asyncio.create_task(self.h2t_put(d))
             else:
                 asyncio.create_task(self.remove())
     async def send_data(self):
@@ -82,6 +102,7 @@ class connection(asyncio.Protocol):
         except asyncio.QueueEmpty:
             pass
         self.tlen+=len(data)
+        # ic(data)
         ic(len(data),connections_len())
         return data
     async def recv(self):
@@ -110,42 +131,49 @@ class connection(asyncio.Protocol):
             data['data']=base64.b64encode(data['data']).decode()
         data=json.dumps(data).encode()
         asyncio.create_task(self.t2h.put(data))
-    def h2t_put(self,data):
+    async def h2t_put(self,data):
         data=json.loads(data.decode())
         if 'data' in data:
             data['data']=base64.b64decode(data['data'])
-        asyncio.create_task(self.h2t.put(data))
+        conn=await get_connection(data['name'])
+        if conn is not None:
+            asyncio.create_task(conn.h2t.put(data))
+    def later(self,d,t):
+        num=self.send_num
+        self.send_num=num+1
+        later(self.enum_put({
+            'num': num,
+            'name': self.name,
+        }|d),t)
     def connection_made(self, transport: asyncio.Transport) -> None:
       # ic(self.name)
         self.transport=transport
         if http_connect:
             self.t2h_put({
                 'event': 'new',
+                'name': self.name,
             })
     def data_received(self, data: bytes) -> None:
-      # ic()
-        later(self.enum_put({
+        self.later({
             'event':'got',
             'data':data,
-        }),min(0.1,self.tlen//1638400))
+        },min(0.1,self.tlen//1638400))
     def eof_received(self) -> None:
-      # ic()
-        later(self.enum_put({
+        self.later({
             'event':'eof',
-        }),4)
+        },4)
     def connection_lost(self, exc: Exception | None) -> None:
-      # ic()
-        later(self.enum_put({
+        self.later({
             'event':'del',
-        }),4)
+        },4)
         asyncio.create_task(self.remove())
     async def enum_put(self, data: dict) -> None:
-        async with self.lock:
-            num=self.send_num
-            self.send_num=num+1
+        # async with self.lock:
+        #     num=self.send_num
+        #     self.send_num=num+1
           # ic(self.name,data,num)
             self.t2h_put({
-                'num': num,
+                # 'num': num,
             }|data)
     async def remove(self):
         self.transport.close()
@@ -187,23 +215,6 @@ class connection(asyncio.Protocol):
 
 def connections_len():
     return len([w for q,w in connections.items() if w is not None])
-
-async def get_connection(name):
-    async with conn_lock:
-        try:
-            name=float(name)
-        except:
-            return None
-        t=time.time()
-        global connections
-        connections={q:w for q,w in connections.items() if w is not None or q+conn_time>t}
-        if name in connections:
-            return connections[name]
-        if time.time()-conn_time>name:
-            return None
-        connections[name]=connection(name)
-        await connections[name].connect()
-        return connections[name]
 
 
 async def recv(req):
