@@ -65,9 +65,7 @@ class connection(asyncio.Protocol):
             *tcp_connect)
     def recv_data(self,data):
         if not data.endswith(b'^'):
-            print(data)
-            print('wrong server response')
-            exit(1)
+            return
         ic(len(data),connections_len())
         self.tlen+=len(data)
         for d in data.split(b'^')[:-1]:
