@@ -42,14 +42,21 @@ def later(coro,time):
     asyncio.create_task(async_later(coro,time))    
 
 def mem(q):
+    self=0
     async def e(r):
         try:
             return await r
         except MemoryError:
             ic(traceback.format_exc())
-            q.__self__.send_remove()
+            if self is not None:
+                self.send_remove()
     @functools.wraps(q)
     def w(*a,**s):
+        nonlocal self
+        if a and type(a[0])==connection:
+            self=a[0]
+        else:
+            self=None
         try:
             r=q(*a,**s)
             if asyncio.iscoroutine(r):
@@ -57,7 +64,8 @@ def mem(q):
             return r
         except MemoryError:
             ic(traceback.format_exc())
-            q.__self__.send_remove()
+            if self is not None:
+                self.send_remove()
     return w
 
 
