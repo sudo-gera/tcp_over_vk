@@ -124,9 +124,6 @@ class connection(asyncio.Protocol):
                 data+=tmp+b'^'
         except asyncio.QueueEmpty:
             pass
-        except MemoryError:
-            del data
-            self.send_remove()
         self.dlen+=len(data)
         ic(len(data),connections_len())
         return data
@@ -145,8 +142,6 @@ class connection(asyncio.Protocol):
                             pass
                         except aiohttp.client_exceptions.ServerDisconnectedError:
                             exit()
-                except MemoryError:
-                    self.send_remove()
     @mem
     async def send(self):
         if http_connect:
@@ -169,8 +164,6 @@ class connection(asyncio.Protocol):
     async def async_put(self,q,data):
         try:
             await q.put(data)
-        except MemoryError:
-            self.send_remove()      
     @mem
     def h2t_put(self,data):
         l=len(data)
