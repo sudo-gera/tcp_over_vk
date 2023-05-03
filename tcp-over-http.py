@@ -52,6 +52,8 @@ class connection(asyncio.Protocol):
         self.send_num=0
         self.recv_num=0
         self.work=1
+        self.dlen=0
+        self.hlen=0
         self.tlen=0
         self.recv_buff=[]
         self.poll=asyncio.create_task(self.recv())
@@ -67,21 +69,29 @@ class connection(asyncio.Protocol):
         if not data.endswith(b'^'):
             return
         ic(len(data),connections_len())
-        self.tlen+=len(data)
+        self.dlen+=len(data)
         for d in data.split(b'^')[:-1]:
             if d:
                 self.h2t_put(d)
             else:
                 asyncio.create_task(self.remove())
     async def send_data(self):
-        data=await self.t2h.get()+b'^'
+        data=await self.t2h.get()
+        self.tlen-=len(data)
+        if self.tlen<=4096:
+            self.transport.resume_reading()
+        data+=b'^'
         await asyncio.sleep(0.03)
         try:
             while self.work:
-                data+=self.t2h.get_nowait()+b'^'
+                tmp=self.t2h.get_nowait()
+                self.tlen-=len(tmp)
+                if self.tlen<=4096:
+                    self.transport.resume_reading()
+                data+=tmp+b'^'
         except asyncio.QueueEmpty:
             pass
-        self.tlen+=len(data)
+        self.dlen+=len(data)
         ic(len(data),connections_len())
         return data
     async def recv(self):
@@ -109,12 +119,26 @@ class connection(asyncio.Protocol):
         if 'data' in data:
             data['data']=base64.b64encode(data['data']).decode()
         data=json.dumps(data).encode()
+        self.tlen+=len(data)
+        if self.tlen>8192:
+            self.transport.pause_reading()
         asyncio.create_task(self.t2h.put(data))
     def h2t_put(self,data):
-        data=json.loads(data.decode())
+        l=len(data)
+        self.hlen+=l
+        data=data.decode()
+        data=json.loads(data)
         if 'data' in data:
             data['data']=base64.b64decode(data['data'])
+        data['l']=l
         asyncio.create_task(self.h2t.put(data))
+    def later(self,d,t):
+        num=self.send_num
+        self.send_num=num+1
+        # ic(self.name,data,num)
+        later(self.enum_put({
+            'num': num,
+        }|d),t)
     def connection_made(self, transport: asyncio.Transport) -> None:
       # ic(self.name)
         self.transport=transport
@@ -124,29 +148,23 @@ class connection(asyncio.Protocol):
             })
     def data_received(self, data: bytes) -> None:
       # ic()
-        later(self.enum_put({
+        self.later(({
             'event':'got',
             'data':data,
-        }),min(0.1,self.tlen//1638400))
+        }),min(0.1,self.dlen//1638400))
     def eof_received(self) -> None:
       # ic()
-        later(self.enum_put({
+        self.later(({
             'event':'eof',
         }),4)
     def connection_lost(self, exc: Exception | None) -> None:
       # ic()
-        later(self.enum_put({
+        self.later(({
             'event':'del',
         }),4)
         asyncio.create_task(self.remove())
     async def enum_put(self, data: dict) -> None:
-        async with self.lock:
-            num=self.send_num
-            self.send_num=num+1
-          # ic(self.name,data,num)
-            self.t2h_put({
-                'num': num,
-            }|data)
+        self.t2h_put(data)
     async def remove(self):
         self.transport.close()
         self.work=0
@@ -161,6 +179,7 @@ class connection(asyncio.Protocol):
     async def enum_get(self):
         while self.work:
             ev=await self.h2t.get()
+            self.hlen-=ev['l']
           # ic(ev)
             if ev['event']=='new':
                 pass
@@ -183,6 +202,8 @@ class connection(asyncio.Protocol):
                     else:
                       # ic(num,ev)
                         break
+                if len(self.recv_buff)>1024:
+                    await self.remove()
                 self.recv_buff=[(num,ev) for num,ev in self.recv_buff if num>=self.recv_num]
 
 def connections_len():
