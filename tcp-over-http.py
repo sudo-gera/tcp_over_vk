@@ -154,7 +154,7 @@ class connection(asyncio.Protocol):
             data['data']=base64.b64encode(data['data']).decode()
         data=json.dumps(data).encode()
         self.tlen+=len(data)
-        if self.tlen>8192:
+        if self.tlen>4096:
             self.transport.pause_reading()
         asyncio.create_task(self.async_put(self.t2h,data))
     @mem
