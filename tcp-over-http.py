@@ -10,6 +10,8 @@ import base64
 from ic import ic
 import sys
 import urllib.request
+import functools
+import traceback
 
 if len(sys.argv)!=3:
     print(f'''to start server: {sys.argv[0]} [tcp-connect-host:]tcp-connect-port [http-listen-host:]http-listen-port''')
@@ -39,6 +41,26 @@ async def async_later(coro,time):
 def later(coro,time):
     asyncio.create_task(async_later(coro,time))    
 
+def mem(q):
+    async def e(r):
+        try:
+            return await r
+        except MemoryError:
+            ic(traceback.format_exc())
+            q.__self__.send_remove()
+    @functools.wraps(q)
+    def w(*a,**s):
+        try:
+            r=q(*a,**s)
+            if asyncio.iscoroutine(r):
+                return e(r)
+            return r
+        except MemoryError:
+            ic(traceback.format_exc())
+            q.__self__.send_remove()
+    return w
+
+
 class connection(asyncio.Protocol):
     def __init__(self,name=None,):
         super().__init__()
@@ -59,12 +81,14 @@ class connection(asyncio.Protocol):
         self.poll=asyncio.create_task(self.recv())
         self.push=asyncio.create_task(self.send())
         self.dget=asyncio.create_task(self.enum_get())
+    @mem
     async def connect(self):
         loop = asyncio.get_running_loop()
         #ic(tcp_connect)
         await loop.create_connection(
             lambda: self,
             *tcp_connect)
+    @mem
     def recv_data(self,data):
         if not data.endswith(b'^'):
             return
@@ -74,7 +98,8 @@ class connection(asyncio.Protocol):
             if d:
                 self.h2t_put(d)
             else:
-                asyncio.create_task(self.remove())
+                self.remove()
+    @mem
     async def send_data(self):
         data=await self.t2h.get()
         self.tlen-=len(data)
@@ -91,22 +116,30 @@ class connection(asyncio.Protocol):
                 data+=tmp+b'^'
         except asyncio.QueueEmpty:
             pass
+        except MemoryError:
+            del data
+            self.send_remove()
         self.dlen+=len(data)
         ic(len(data),connections_len())
         return data
+    @mem
     async def recv(self):
         if http_connect:
             async with aiohttp.ClientSession(trust_env=True) as session:
-                while self.work:
-                    try:
-                        async with session.get(f'''{http_connect}/{self.name}''') as resp:
-                            data=await resp.read()
-                            self.recv_data(data)
-                    except asyncio.exceptions.TimeoutError:
-                        ic()
-                        pass
-                    except aiohttp.client_exceptions.ServerDisconnectedError:
-                        exit()
+                try:
+                    while self.work:
+                        try:
+                            async with session.get(f'''{http_connect}/{self.name}''') as resp:
+                                data=await resp.read()
+                                self.recv_data(data)
+                        except asyncio.exceptions.TimeoutError:
+                            ic()
+                            pass
+                        except aiohttp.client_exceptions.ServerDisconnectedError:
+                            exit()
+                except MemoryError:
+                    self.send_remove()
+    @mem
     async def send(self):
         if http_connect:
             async with aiohttp.ClientSession(trust_env=True) as session:
@@ -115,6 +148,7 @@ class connection(asyncio.Protocol):
                   # ic(self.name,data)
                     async with session.post(f'''{http_connect}/{self.name}''', data=data) as resp:
                         pass
+    @mem
     def t2h_put(self,data):
         if 'data' in data:
             data['data']=base64.b64encode(data['data']).decode()
@@ -122,7 +156,14 @@ class connection(asyncio.Protocol):
         self.tlen+=len(data)
         if self.tlen>8192:
             self.transport.pause_reading()
-        asyncio.create_task(self.t2h.put(data))
+        asyncio.create_task(self.async_put(self.t2h,data))
+    @mem
+    async def async_put(self,q,data):
+        try:
+            await q.put(data)
+        except MemoryError:
+            self.send_remove()      
+    @mem
     def h2t_put(self,data):
         l=len(data)
         self.hlen+=l
@@ -131,7 +172,8 @@ class connection(asyncio.Protocol):
         if 'data' in data:
             data['data']=base64.b64decode(data['data'])
         data['l']=l
-        asyncio.create_task(self.h2t.put(data))
+        asyncio.create_task(self.async_put(self.h2t,data))
+    @mem
     def later(self,d,t):
         num=self.send_num
         self.send_num=num+1
@@ -139,6 +181,7 @@ class connection(asyncio.Protocol):
         later(self.enum_put({
             'num': num,
         }|d),t)
+    @mem
     def connection_made(self, transport: asyncio.Transport) -> None:
       # ic(self.name)
         self.transport=transport
@@ -146,36 +189,52 @@ class connection(asyncio.Protocol):
             self.t2h_put({
                 'event': 'new',
             })
+    @mem
     def data_received(self, data: bytes) -> None:
       # ic()
         self.later(({
             'event':'got',
             'data':data,
         }),min(0.1,self.dlen//1638400))
+    @mem
     def eof_received(self) -> None:
       # ic()
         self.later(({
             'event':'eof',
         }),4)
+    @mem
     def connection_lost(self, exc: Exception | None) -> None:
       # ic()
         self.later(({
             'event':'del',
         }),4)
-        asyncio.create_task(self.remove())
+        self.remove()
+    @mem
     async def enum_put(self, data: dict) -> None:
         self.t2h_put(data)
-    async def remove(self):
+    @mem
+    async def async_remove(self):
         self.transport.close()
         self.work=0
         async with conn_lock:
             if self.name in connections:
                 connections[self.name]=None
         later(self.remove_later(),16)
+    @mem
+    def remove(self):
+        asyncio.create_task(self.async_remove())
+    @mem
+    def send_remove(self):
+        self.later(({
+            'event':'del',
+        }),4)
+        self.remove()
+    @mem
     async def remove_later(self):
         self.dget.cancel()
         self.push.cancel()
         self.poll.cancel()
+    @mem
     async def enum_get(self):
         while self.work:
             ev=await self.h2t.get()
@@ -197,13 +256,12 @@ class connection(asyncio.Protocol):
                         if ev['event']=='eof':
                             self.transport.write_eof()
                         if ev['event']=='del':
-                            await self.remove()
-                            # asyncio.create_task(self.later(self.remove(),16))
+                            self.remove()
                     else:
                       # ic(num,ev)
                         break
                 if len(self.recv_buff)>1024:
-                    await self.remove()
+                    self.send_remove()
                 self.recv_buff=[(num,ev) for num,ev in self.recv_buff if num>=self.recv_num]
 
 def connections_len():
