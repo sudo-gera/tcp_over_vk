@@ -131,7 +131,6 @@ class connection(asyncio.Protocol):
     async def recv(self):
         if http_connect:
             async with aiohttp.ClientSession(trust_env=True) as session:
-                try:
                     while self.work:
                         try:
                             async with session.get(f'''{http_connect}/{self.name}''') as resp:
@@ -162,8 +161,7 @@ class connection(asyncio.Protocol):
         asyncio.create_task(self.async_put(self.t2h,data))
     @mem
     async def async_put(self,q,data):
-        try:
-            await q.put(data)
+        await q.put(data)
     @mem
     def h2t_put(self,data):
         l=len(data)
