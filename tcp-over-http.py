@@ -13,21 +13,20 @@ import urllib.request
 import functools
 import traceback
 
-if len(sys.argv)!=3:
-    print(f'''to start server: {sys.argv[0]} [tcp-connect-host:]tcp-connect-port [http-listen-host:]http-listen-port''')
-    print(f'''to start client: {sys.argv[0]} [tcp-listen-host:]tcp-listen-port http(s)://-started-url''')
-    exit(1)
-
-if sys.argv[2].startswith('http'):
-    tcp_listen=(':'+sys.argv[1]).split(':')[-2:]
+if len(sys.argv)==2:
+    http_listen=('0.0.0.0:'+sys.argv[1]).split(':')[-2:]
+    http_connect=None
+    tcp_listen=None
     tcp_connect=None
+elif len(sys.argv)==3:
     http_listen=None
     http_connect=sys.argv[2]
+    tcp_connect=(':'+sys.argv[1]).split(':')[-4:]
+    tcp_listen,tcp_connect=tcp_connect[:2],tcp_connect[2:]
 else:
-    tcp_listen=None
-    tcp_connect=(':'+sys.argv[1]).split(':')[-2:]
-    http_listen=('0.0.0.0:'+sys.argv[2]).split(':')[-2:]
-    http_connect=None
+    print(f'''to start server: {sys.argv[0]} [http-listen-host:]http-listen-port''')
+    print(f'''to start client: {sys.argv[0]} [tcp-listen-host:]tcp-listen-port:tcp-remote-host:tcp-remote-port http(s)://-started-url''')
+    exit(1)
 
 connections:dict[str,connection]={}
 conn_lock=asyncio.Lock()
@@ -70,13 +69,14 @@ def mem(q):
 
 
 class connection(asyncio.Protocol):
-    def __init__(self,name=None,):
+    def __init__(self,name=None,tcp_connect=tcp_connect):
         super().__init__()
         if name is None:
             name=str(time.time())
         connections[name]=self
         self.lock=asyncio.Lock()
         self.name=name
+        self.tcp_connect=tcp_connect
         self.h2t=asyncio.Queue()
         self.t2h=asyncio.Queue()
         self.send_num=0
@@ -95,7 +95,7 @@ class connection(asyncio.Protocol):
         #ic(tcp_connect)
         await loop.create_connection(
             lambda: self,
-            *tcp_connect)
+            *self.tcp_connect.split(':'))
     @mem
     def recv_data(self,data):
         if not data.endswith(b'^'):
@@ -133,7 +133,7 @@ class connection(asyncio.Protocol):
             async with aiohttp.ClientSession(trust_env=True) as session:
                     while self.work:
                         try:
-                            async with session.get(f'''{http_connect}/{self.name}''') as resp:
+                            async with session.get(f'''{http_connect}/{self.name}/{':'.join(self.tcp_connect)}''') as resp:
                                 data=await resp.read()
                                 self.recv_data(data)
                         except asyncio.exceptions.TimeoutError:
@@ -148,7 +148,7 @@ class connection(asyncio.Protocol):
                 while self.work:
                     data=await self.send_data()
                   # ic(self.name,data)
-                    async with session.post(f'''{http_connect}/{self.name}''', data=data) as resp:
+                    async with session.post(f'''{http_connect}/{self.name}/{':'.join(self.tcp_connect)}''', data=data) as resp:
                         pass
     @mem
     def t2h_put(self,data):
@@ -178,6 +178,7 @@ class connection(asyncio.Protocol):
         self.send_num=num+1
         # ic(self.name,data,num)
         later(self.enum_put({
+            'connect': tcp_connect,
             'num': num,
         }|d),t)
     @mem
@@ -186,6 +187,7 @@ class connection(asyncio.Protocol):
         self.transport=transport
         if http_connect:
             self.t2h_put({
+                'connect': tcp_connect,
                 'event': 'new',
             })
     @mem
@@ -266,7 +268,7 @@ class connection(asyncio.Protocol):
 def connections_len():
     return len([w for q,w in connections.items() if w is not None])
 
-async def get_connection(name):
+async def get_connection(name,tcp_connect):
     async with conn_lock:
         try:
             name=float(name)
@@ -279,14 +281,16 @@ async def get_connection(name):
             return connections[name]
         if time.time()-conn_time>name:
             return None
-        connections[name]=connection(name)
+        connections[name]=connection(name,tcp_connect)
         await connections[name].connect()
         return connections[name]
 
 
 async def recv(req):
     name=req.match_info['name']
-    conn=await get_connection(name)
+    tcp_connect=req.match_info['tcp_connect']
+    ic(name,tcp_connect)
+    conn=await get_connection(name,tcp_connect)
     if conn is None:
         return aiohttp.web.Response(text='^')
     data=await req.read()
@@ -295,7 +299,8 @@ async def recv(req):
 
 async def send(req):
     name=req.match_info['name']
-    conn=await get_connection(name)
+    tcp_connect=req.match_info['tcp_connect']
+    conn=await get_connection(name,tcp_connect)
     if conn is None:
         return aiohttp.web.Response(text='^')
     data=await conn.send_data()
@@ -308,8 +313,8 @@ if http_listen:
     app = aiohttp.web.Application()
     app.add_routes([
         aiohttp.web.get('/', get_time),
-        aiohttp.web.post('/{name}', recv),
-        aiohttp.web.get('/{name}', send),
+        aiohttp.web.post('/{name}/{tcp_connect}', recv),
+        aiohttp.web.get('/{name}/{tcp_connect}', send),
     ])
     aiohttp.web.run_app(app, host=http_listen[0], port=http_listen[1])
 if http_connect:
