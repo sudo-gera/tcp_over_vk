@@ -32,6 +32,7 @@ connections:dict[str,connection]={}
 conn_lock=asyncio.Lock()
 
 conn_time=6*3600
+live_time=600
 
 async def async_later(coro,time):
     await asyncio.sleep(time)
@@ -86,6 +87,7 @@ class connection(asyncio.Protocol):
         self.hlen=0
         self.tlen=0
         self.recv_buff=[]
+        self.last=time.time()
         self.poll=asyncio.create_task(self.recv())
         self.push=asyncio.create_task(self.send())
         self.dget=asyncio.create_task(self.enum_get())
@@ -109,21 +111,21 @@ class connection(asyncio.Protocol):
                 self.remove()
     @mem
     async def send_data(self):
-        data=await self.t2h.get()
-        self.tlen-=len(data)
-        if self.tlen<=4096:
-            self.transport.resume_reading()
-        data+=b'^'
+        data=[await self.t2h.get()]
+        self.tlen-=len(data[-1])
+        data+=[b'^']
         await asyncio.sleep(0.03)
         try:
             while self.work:
                 tmp=self.t2h.get_nowait()
                 self.tlen-=len(tmp)
-                if self.tlen<=4096:
-                    self.transport.resume_reading()
-                data+=tmp+b'^'
+                data+=[tmp+b'^']
         except asyncio.QueueEmpty:
             pass
+        data=b''.join(data)
+        ic(self.tlen)
+        if self.tlen<=64:
+            self.transport.resume_reading()
         self.dlen+=len(data)
         ic(len(data),connections_len())
         return data
@@ -152,11 +154,13 @@ class connection(asyncio.Protocol):
                         pass
     @mem
     def t2h_put(self,data):
+        self.last=time.time()
         if 'data' in data:
             data['data']=base64.b64encode(data['data']).decode()
         data=json.dumps(data).encode()
         self.tlen+=len(data)
-        if self.tlen>4096:
+        ic(self.tlen)
+        if self.tlen>64:
             self.transport.pause_reading()
         asyncio.create_task(self.async_put(self.t2h,data))
     @mem
@@ -164,6 +168,7 @@ class connection(asyncio.Protocol):
         await q.put(data)
     @mem
     def h2t_put(self,data):
+        self.last=time.time()
         l=len(data)
         self.hlen+=l
         data=data.decode()
@@ -277,6 +282,10 @@ async def get_connection(name,tcp_connect):
         t=time.time()
         global connections
         connections={q:w for q,w in connections.items() if w is not None or q+conn_time>t}
+        for name in connections:
+            if connections[name] is not None:
+                if connections[name].last+live_time<time.time():
+                    connections[name].send_remove()
         if name in connections:
             return connections[name]
         if time.time()-conn_time>name:
