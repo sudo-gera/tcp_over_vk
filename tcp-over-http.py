@@ -12,6 +12,7 @@ import sys
 import urllib.request
 import functools
 import traceback
+import weakref
 
 if len(sys.argv)==2:
     http_listen=('0.0.0.0:'+sys.argv[1]).split(':')[-2:]
@@ -41,280 +42,326 @@ async def async_later(coro,time):
 def later(coro,time):
     asyncio.create_task(async_later(coro,time))    
 
-def mem(q):
+def err(q):
     self=0
     async def e(r):
         try:
-            return await r
-        except MemoryError:
+            # ic(q)
+            r= await r
+            # ic(q,r)
+            return r
+        except Exception:
+            ic(q)
             ic(traceback.format_exc())
+            # exit()
             if self is not None:
-                self.send_remove()
+                self.remove()
     @functools.wraps(q)
     def w(*a,**s):
         nonlocal self
         if a and type(a[0])==connection:
             self=a[0]
+        elif a and type(a[0]) in [connection.h2t_c, connection.t2h_c]:
+            try:
+                self=a[0].conn
+            except Exception:
+                self=None
         else:
             self=None
         try:
+            # ic(q,a,s)
             r=q(*a,**s)
+            # ic(q,a,s,r)
             if asyncio.iscoroutine(r):
                 return e(r)
             return r
-        except MemoryError:
+        except Exception:
+            ic(q)
             ic(traceback.format_exc())
+            # exit()
             if self is not None:
-                self.send_remove()
+                self.remove()
     return w
 
 
-class connection(asyncio.Protocol):
-    def __init__(self,name=None,tcp_connect=tcp_connect):
-        super().__init__()
-        if name is None:
-            name=str(time.time())
-        connections[name]=self
+class DataQueue:
+    def __init__(self):
+        self.queue=asyncio.Queue()
+        self.len=0
         self.lock=asyncio.Lock()
-        self.name=name
-        self.tcp_connect=tcp_connect
-        self.h2t=asyncio.Queue()
-        self.t2h=asyncio.Queue()
-        self.send_num=0
-        self.recv_num=0
-        self.work=1
-        self.dlen=0
-        self.hlen=0
-        self.tlen=0
-        self.recv_buff=[]
-        self.last=time.time()
-        self.poll=asyncio.create_task(self.recv())
-        self.push=asyncio.create_task(self.send())
-        self.dget=asyncio.create_task(self.enum_get())
-    @mem
-    async def connect(self):
-        loop = asyncio.get_running_loop()
-        #ic(tcp_connect)
-        await loop.create_connection(
-            lambda: self,
-            *self.tcp_connect.split(':'))
-    @mem
-    def recv_data(self,data):
-        if not data.endswith(b'^'):
-            return
-        ic(len(data),connections_len())
-        self.dlen+=len(data)
-        for d in data.split(b'^')[:-1]:
-            if d:
-                self.h2t_put(d)
-            else:
-                self.remove()
-    @mem
-    async def send_data(self):
-        data=[await self.t2h.get()]
-        self.tlen-=len(data[-1])
-        data+=[b'^']
-        await asyncio.sleep(0.03)
+    def put(self,val:bytes):
+        assert type(val) in [bytes, bytearray]
+        self.queue.put_nowait(val)
+        self.len+=len(val)
+    def get(self):
+        data=[]
         try:
-            while self.work:
-                tmp=self.t2h.get_nowait()
-                self.tlen-=len(tmp)
-                data+=[tmp+b'^']
+            while 1:
+                chunk=self.queue.get_nowait()
+                self.len-=len(chunk)
+                data.append(chunk)
         except asyncio.QueueEmpty:
             pass
         data=b''.join(data)
-        ic(self.tlen)
-        if self.tlen<=64:
-            self.transport.resume_reading()
-        self.dlen+=len(data)
-        ic(len(data),connections_len())
         return data
-    @mem
-    async def recv(self):
-        if http_connect:
-            async with aiohttp.ClientSession(trust_env=True) as session:
-                    while self.work:
-                        try:
-                            async with session.get(f'''{http_connect}/{self.name}/{':'.join(self.tcp_connect)}''') as resp:
-                                data=await resp.read()
-                                self.recv_data(data)
-                        except asyncio.exceptions.TimeoutError:
-                            ic()
+    def __len__(self):
+        return self.len
+    async def get_wait(self):
+        data=await self.queue.get()
+        self.len-=len(data)
+        g=self.get()
+        data+=g
+        return data
+
+events = DataQueue()
+
+class connection(asyncio.Protocol):
+    class t2h_c:
+        @err
+        def __init__(self,conn:connection):
+            self.conn:connection=conn
+            self.conn.last=time.time()
+            self.loop=asyncio.create_task(self.session_loop())
+            self.queue=DataQueue()
+            self.num=0
+        @err
+        async def session_loop(self):
+            if http_connect:
+                async with aiohttp.ClientSession(trust_env=True) as session:
+                    while self.conn.work:
+                        data=await self.what_to_send()
+                        async with session.post(f'''{http_connect}/{self.conn.name}/{self.conn.forward_to}''', data=data) as resp:
                             pass
-                        except aiohttp.client_exceptions.ServerDisconnectedError:
-                            exit()
-    @mem
-    async def send(self):
-        if http_connect:
-            async with aiohttp.ClientSession(trust_env=True) as session:
-                while self.work:
-                    data=await self.send_data()
-                  # ic(self.name,data)
-                    async with session.post(f'''{http_connect}/{self.name}/{':'.join(self.tcp_connect)}''', data=data) as resp:
-                        pass
-    @mem
-    def t2h_put(self,data):
-        self.last=time.time()
-        if 'data' in data:
-            data['data']=base64.b64encode(data['data']).decode()
-        data=json.dumps(data).encode()
-        self.tlen+=len(data)
-        ic(self.tlen)
-        if self.tlen>64:
-            self.transport.pause_reading()
-        asyncio.create_task(self.async_put(self.t2h,data))
-    @mem
-    async def async_put(self,q,data):
-        await q.put(data)
-    @mem
-    def h2t_put(self,data):
-        self.last=time.time()
-        l=len(data)
-        self.hlen+=l
-        data=data.decode()
-        data=json.loads(data)
-        if 'data' in data:
-            data['data']=base64.b64decode(data['data'])
-        data['l']=l
-        asyncio.create_task(self.async_put(self.h2t,data))
-    @mem
-    def later(self,d,t):
-        num=self.send_num
-        self.send_num=num+1
-        # ic(self.name,data,num)
-        later(self.enum_put({
-            'connect': tcp_connect,
-            'num': num,
-        }|d),t)
-    @mem
-    def connection_made(self, transport: asyncio.Transport) -> None:
-      # ic(self.name)
-        self.transport=transport
-        if http_connect:
-            self.t2h_put({
-                'connect': tcp_connect,
-                'event': 'new',
-            })
-    @mem
-    def data_received(self, data: bytes) -> None:
-      # ic()
-        self.later(({
-            'event':'got',
-            'data':data,
-        }),min(0.1,self.dlen//1638400))
-    @mem
-    def eof_received(self) -> None:
-      # ic()
-        self.later(({
-            'event':'eof',
-        }),4)
-    @mem
-    def connection_lost(self, exc: Exception | None) -> None:
-      # ic()
-        self.later(({
-            'event':'del',
-        }),4)
-        self.remove()
-    @mem
-    async def enum_put(self, data: dict) -> None:
-        self.t2h_put(data)
-    @mem
-    async def async_remove(self):
-        self.transport.close()
-        self.work=0
-        async with conn_lock:
-            if self.name in connections:
-                connections[self.name]=None
-        later(self.remove_later(),16)
-    @mem
-    def remove(self):
-        asyncio.create_task(self.async_remove())
-    @mem
-    def send_remove(self):
-        self.later(({
-            'event':'del',
-        }),4)
-        self.remove()
-    @mem
-    async def remove_later(self):
-        self.dget.cancel()
-        self.push.cancel()
-        self.poll.cancel()
-    @mem
-    async def enum_get(self):
-        while self.work:
-            ev=await self.h2t.get()
-            self.hlen-=ev['l']
-          # ic(ev)
-            if ev['event']=='new':
-                pass
+        @err
+        def update_reading(self):
+            # ic(len(self.queue))
+            if len(self.queue)<4096:
+                self.conn.transport.resume_reading()
             else:
-                num=ev['num']
-              # ic(ev,num,self.recv_buff,self.recv_num)
-                self.recv_buff.append((num,ev))
-                self.recv_buff.sort()
-                for num,ev in self.recv_buff:
-                    if num==self.recv_num:
-                        self.recv_num=num+1
-                      # ic(num,ev)
-                        if ev['event']=='got':
-                            self.transport.write(ev['data'])
-                        if ev['event']=='eof':
-                            self.transport.write_eof()
-                        if ev['event']=='del':
-                            self.remove()
-                    else:
-                      # ic(num,ev)
-                        break
-                if len(self.recv_buff)>1024:
-                    self.send_remove()
-                self.recv_buff=[(num,ev) for num,ev in self.recv_buff if num>=self.recv_num]
+                self.conn.transport.pause_reading()
+        @err
+        async def what_to_send(self):
+            try:
+                async with asyncio.timeout(2):
+                    ic(len(self.queue))
+                    data=await self.queue.get_wait()
+                    ic(len(self.queue))
+                    self.update_reading()
+            except asyncio.TimeoutError:
+                data=b''
+            return data+events.get()
+        @err
+        def event(self,ev,data=None):
+            if self.conn is None:
+                return
+            d=dict(
+                to=self.conn.forward_to,
+                type=ev,
+                name=self.conn.name,
+            )
+            self.conn.last=time.time()
+            if ev!='new':
+                num=self.num
+                self.num+=1
+                d['num']=num
+            if ev=='got':
+                d['data']=base64.b64encode(data).decode()
+            d=json.dumps(d)+'^'
+            d=d.encode()
+            if ev=='got':
+                ic(d)
+                ic(len(self.queue))
+                self.queue.put(d)
+                ic(len(self.queue))
+                self.update_reading()
+            else:
+                events.put(d)
+            if ev=='del':
+                later(self.conn.async_local_remove(),4)
+        @err
+        def remove(self):
+            # ic()
+            self.conn=None
+            self.loop.cancel()
 
-def connections_len():
-    return len([w for q,w in connections.items() if w is not None])
+    class h2t_c:
+        @err
+        def __init__(self,conn):
+            self.conn:connection=conn
+            self.conn.last=time.time()
+            self.loop=asyncio.create_task(self.session_loop())
+            self.num=0
+            self.buff=[]
+        @err
+        async def session_loop(self):
+            if http_connect:
+                async with aiohttp.ClientSession(trust_env=True) as session:
+                        while self.conn.work:
+                            try:
+                                async with session.get(f'''{http_connect}/{self.conn.name}/{self.conn.forward_to}''') as resp:
+                                    data=await resp.read()
+                                    await self.received(data)
+                            except asyncio.exceptions.TimeoutError:
+                                pass
+                            except aiohttp.client_exceptions.ServerDisconnectedError:
+                                exit()
+        @err
+        async def received(self,all_data):
+            for data in all_data.split(b'^')[:-1]:
+                ic(data)
+                if not data and self.conn is not None:
+                    self.conn.local_remove()
+                    break
+                data=json.loads(data)
+                conn=await get_connection(data['name'],data['to'])
+                if conn:
+                    # ic(connections)
+                    # ic(conn.name,data)
+                    assert conn.name==data['name']
+                    await conn.h2t.event(data)
+        @err
+        async def event(self,data):
+            if not self.conn.work:
+                return
+            self.conn.last=time.time()
+            if data['type']=='new':
+                return
+            self.buff.append((data['num'],data))
+            # ic(self.buff,self.num)
+            self.buff.sort()
+            for num,ev in self.buff:
+                if num!=self.num:
+                    break
+                # ic(ev)
+                self.num+=1
+                if ev['type']=='got':
+                    while self.conn.transport is None:
+                        await asyncio.sleep(0.01)
+                        if self.conn is None:
+                            return
+                    self.conn.transport.write(base64.b64decode(ev['data']))
+                if ev['type']=='eof':
+                    while self.conn.transport is None:
+                        await asyncio.sleep(0.01)
+                    self.conn.transport.write_eof()
+                if ev['type']=='del':
+                    self.conn.local_remove()
+            self.buff=[q for q in self.buff if q[0]>=self.num]
+            if len(self.buff)>1024:
+                self.conn.remove()
+        @err
+        def remove(self):
+            self.conn=None
+            self.loop.cancel()
 
-async def get_connection(name,tcp_connect):
-    async with conn_lock:
-        try:
-            name=float(name)
-        except:
-            return None
-        t=time.time()
-        global connections
-        connections={q:w for q,w in connections.items() if w is not None or q+conn_time>t}
-        for name in connections:
-            if connections[name] is not None:
-                if connections[name].last+live_time<time.time():
-                    connections[name].send_remove()
-        if name in connections:
-            return connections[name]
-        if time.time()-conn_time>name:
-            return None
-        connections[name]=connection(name,tcp_connect)
-        await connections[name].connect()
+    @err
+    def connection_made(self, transport: asyncio.Transport) -> None:
+        self.transport=transport
+        self.t2h.event('new')
+    @err
+    def data_received(self, data: bytes) -> None:
+        self.t2h.event('got',data)
+    @err
+    def eof_received(self) -> None:
+        self.t2h.event('eof')
+    @err
+    def connection_lost(self, exc: Exception | None) -> None:
+        self.t2h.event('del')
+        
+
+    @err
+    def __init__(self,name=None,forward_to=None):
+        super().__init__()
+        if name is None:
+            name=time.time()
+        if forward_to is None:
+            forward_to=':'.join(tcp_connect)
+        connections[name]=self
+        self.forward_to=forward_to
+        # ic(forward_to)
+        self.name=name
+        self.work=1
+        self.transport:asyncio.Transport=None
+
+        self.t2h=self.t2h_c(self)
+        self.h2t=self.h2t_c(self)
+
+    @err
+    async def connect(self):
+        loop = asyncio.get_running_loop()
+        await loop.create_connection(
+            lambda: self,
+            *self.forward_to.split(':'))
+    
+    @err
+    def remove(self):
+        if self.work:
+            self.connection_lost(None)
+    
+    @err
+    def local_remove(self):
+        if self.work:
+            self.work=0
+            self.t2h.remove()
+            self.h2t.remove()
+            if self.transport is not None:
+                self.transport.close()
+                self.transport=None
+        # ic(self.name, connections)
+        if self.name in connections:
+            connections[self.name]=None
+
+    @err
+    async def async_local_remove(self):
+        self.local_remove()
+
+@err
+async def get_connection(name,forward_to)->connection:
+    try:
+        name=float(name)
+    except:
+        return None
+    t=time.time()
+    global connections
+    connections={q:w for q,w in connections.items() if w is not None or q+conn_time>t}
+    for _name in connections:
+        if connections[_name] is not None:
+            if connections[_name].last+live_time<time.time():
+                connections[_name].remove()
+    if name in connections:
         return connections[name]
+    if time.time()>name+conn_time:
+        return None
+    connections[name]=connection(name,forward_to)
+    await connections[name].connect()
+    return connections[name]
 
 
+@err
 async def recv(req):
     name=req.match_info['name']
-    tcp_connect=req.match_info['tcp_connect']
-    ic(name,tcp_connect)
-    conn=await get_connection(name,tcp_connect)
+    forward_to=req.match_info['forward_to']
+    conn=await get_connection(name,forward_to)
     if conn is None:
         return aiohttp.web.Response(text='^')
-    data=await req.read()
-    conn.recv_data(data)
+    try:
+        data=await req.read()
+    except Exception:
+        data=b''
+    await conn.h2t.received(data)
     return aiohttp.web.Response(text=bin(len(data))[2:])
 
+@err
 async def send(req):
     name=req.match_info['name']
-    tcp_connect=req.match_info['tcp_connect']
-    conn=await get_connection(name,tcp_connect)
+    forward_to=req.match_info['forward_to']
+    conn=await get_connection(name,forward_to)
     if conn is None:
         return aiohttp.web.Response(text='^')
-    data=await conn.send_data()
+    data=await conn.t2h.what_to_send()
     return aiohttp.web.Response(body=data)
 
+@err
 async def get_time(req):
     return aiohttp.web.Response(text=str(time.time()))
 
@@ -322,12 +369,13 @@ if http_listen:
     app = aiohttp.web.Application()
     app.add_routes([
         aiohttp.web.get('/', get_time),
-        aiohttp.web.post('/{name}/{tcp_connect}', recv),
-        aiohttp.web.get('/{name}/{tcp_connect}', send),
+        aiohttp.web.post('/{name}/{forward_to}', recv),
+        aiohttp.web.get('/{name}/{forward_to}', send),
     ])
     aiohttp.web.run_app(app, host=http_listen[0], port=http_listen[1])
 if http_connect:
     # http_client_name=urllib.request.urlopen(http_connect).read()
+    @err
     async def main():
         loop = asyncio.get_running_loop()
         server = await loop.create_server(
