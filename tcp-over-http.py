@@ -143,9 +143,10 @@ class connection(asyncio.Protocol):
         async def what_to_send(self):
             try:
                 async with asyncio.timeout(2):
-                    ic(len(self.queue))
+                    # ic(len(self.queue))
                     data=await self.queue.get_wait()
-                    ic(len(self.queue))
+                    ic(len(data))
+                    # ic(len(self.queue))
                     self.update_reading()
             except asyncio.TimeoutError:
                 data=b''
@@ -169,10 +170,10 @@ class connection(asyncio.Protocol):
             d=json.dumps(d)+'^'
             d=d.encode()
             if ev=='got':
-                ic(d)
-                ic(len(self.queue))
+                # ic(d)
+                # ic(len(self.queue))
                 self.queue.put(d)
-                ic(len(self.queue))
+                # ic(len(self.queue))
                 self.update_reading()
             else:
                 events.put(d)
@@ -208,10 +209,11 @@ class connection(asyncio.Protocol):
         @err
         async def received(self,all_data):
             for data in all_data.split(b'^')[:-1]:
-                ic(data)
+                # ic(data)
                 if not data and self.conn is not None:
                     self.conn.local_remove()
                     break
+                ic(len(data))
                 data=json.loads(data)
                 conn=await get_connection(data['name'],data['to'])
                 if conn:
