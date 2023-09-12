@@ -46,14 +46,11 @@ def err(q):
     self=0
     async def e(r):
         try:
-            # ic(q)
             r= await r
-            # ic(q,r)
             return r
         except Exception:
             ic(q)
             ic(traceback.format_exc())
-            # exit()
             if self is not None:
                 self.remove()
     @functools.wraps(q)
@@ -69,16 +66,13 @@ def err(q):
         else:
             self=None
         try:
-            # ic(q,a,s)
             r=q(*a,**s)
-            # ic(q,a,s,r)
             if asyncio.iscoroutine(r):
                 return e(r)
             return r
         except Exception:
             ic(q)
             ic(traceback.format_exc())
-            # exit()
             if self is not None:
                 self.remove()
     return w
@@ -90,6 +84,7 @@ class DataQueue:
         self.len=0
         self.lock=asyncio.Lock()
     def put(self,val:bytes):
+        ic(val)
         assert type(val) in [bytes, bytearray]
         self.queue.put_nowait(val)
         self.len+=len(val)
@@ -102,18 +97,27 @@ class DataQueue:
                 data.append(chunk)
         except asyncio.QueueEmpty:
             pass
+        ic(data)
         data=b''.join(data)
         return data
     def __len__(self):
         return self.len
     async def get_wait(self):
-        data=await self.queue.get()
-        self.len-=len(data)
-        g=self.get()
-        data+=g
-        return data
+        async with self.lock:
+            ic('start waiting...')
+            data=await self.queue.get()
+            self.len-=len(data)
+            ic('stop waiting...', data)
+            g=self.get()
+            data+=g
+            return data
 
 events = DataQueue()
+
+async def run_with_timeout(coro,timeout):
+    task = asyncio.create_task(coro)
+    await asyncio.wait([task], timeout=timeout)
+    return task.result()
 
 class connection(asyncio.Protocol):
     class t2h_c:
@@ -128,13 +132,14 @@ class connection(asyncio.Protocol):
         async def session_loop(self):
             if http_connect:
                 async with aiohttp.ClientSession(trust_env=True) as session:
-                    while self.conn.work:
+                    while self.conn is not None and self.conn.work:
                         data=await self.what_to_send()
+                        if self.conn is None:
+                            return
                         async with session.post(f'''{http_connect}/{self.conn.name}/{self.conn.forward_to}''', data=data) as resp:
                             pass
         @err
         def update_reading(self):
-            # ic(len(self.queue))
             if len(self.queue)<4096:
                 self.conn.transport.resume_reading()
             else:
@@ -142,15 +147,15 @@ class connection(asyncio.Protocol):
         @err
         async def what_to_send(self):
             try:
-                async with asyncio.timeout(2):
-                    # ic(len(self.queue))
-                    data=await self.queue.get_wait()
-                    ic(len(data))
-                    # ic(len(self.queue))
-                    self.update_reading()
-            except asyncio.TimeoutError:
+                data = await run_with_timeout(self.queue.get_wait(), 16)
+                ic(data)
+                # async with asyncio.timeout(2):
+                #     data=await self.queue.get_wait()
+                ic(len(data))
+                self.update_reading()
+            except (asyncio.CancelledError,asyncio.InvalidStateError):
                 data=b''
-            return data+events.get()
+            return ic(data+events.get())
         @err
         def event(self,ev,data=None):
             if self.conn is None:
@@ -170,10 +175,7 @@ class connection(asyncio.Protocol):
             d=json.dumps(d)+'^'
             d=d.encode()
             if ev=='got':
-                # ic(d)
-                # ic(len(self.queue))
                 self.queue.put(d)
-                # ic(len(self.queue))
                 self.update_reading()
             else:
                 events.put(d)
@@ -181,7 +183,6 @@ class connection(asyncio.Protocol):
                 later(self.conn.async_local_remove(),4)
         @err
         def remove(self):
-            # ic()
             self.conn=None
             self.loop.cancel()
 
@@ -197,7 +198,7 @@ class connection(asyncio.Protocol):
         async def session_loop(self):
             if http_connect:
                 async with aiohttp.ClientSession(trust_env=True) as session:
-                        while self.conn.work:
+                        while self.conn is not None and self.conn.work:
                             try:
                                 async with session.get(f'''{http_connect}/{self.conn.name}/{self.conn.forward_to}''') as resp:
                                     data=await resp.read()
@@ -209,7 +210,6 @@ class connection(asyncio.Protocol):
         @err
         async def received(self,all_data):
             for data in all_data.split(b'^')[:-1]:
-                # ic(data)
                 if not data and self.conn is not None:
                     self.conn.local_remove()
                     break
@@ -217,8 +217,6 @@ class connection(asyncio.Protocol):
                 data=json.loads(data)
                 conn=await get_connection(data['name'],data['to'])
                 if conn:
-                    # ic(connections)
-                    # ic(conn.name,data)
                     assert conn.name==data['name']
                     await conn.h2t.event(data)
         @err
@@ -229,12 +227,10 @@ class connection(asyncio.Protocol):
             if data['type']=='new':
                 return
             self.buff.append((data['num'],data))
-            # ic(self.buff,self.num)
             self.buff.sort()
             for num,ev in self.buff:
                 if num!=self.num:
                     break
-                # ic(ev)
                 self.num+=1
                 if ev['type']=='got':
                     while self.conn.transport is None:
@@ -290,6 +286,7 @@ class connection(asyncio.Protocol):
 
     @err
     async def connect(self):
+        assert http_listen is not None
         loop = asyncio.get_running_loop()
         await loop.create_connection(
             lambda: self,
