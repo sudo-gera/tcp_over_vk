@@ -1,19 +1,12 @@
-import asyncio
-import time
+import json
+import vk
+# import vk_messages
+tokens = [*json.load(open('../.IPoVKtoken')).items()]
+token, gid = tokens[-1]
 
-async def say_after(delay, what):
-    await asyncio.sleep(delay)
-    print(what)
-    print('\x1b[A\x1b[80C'+f"printed at {time.strftime('%X')}")
+api = vk.Api(token=token)
+# api = vk_messages.API()
+# print(api.groups.getById())
+# print(api.groups.getMembers(group_id=218708251, count=0))
 
-async def main():
-    print(f"started at {time.strftime('%X')}")
 
-    t1= asyncio.create_task(say_after(1, 'hello'))
-    t2= asyncio.create_task(say_after(2, 'world'))
-    await t1
-    await t2
-
-    print(f"finished at {time.strftime('%X')}")
-
-asyncio.run(main())

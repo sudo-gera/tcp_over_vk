@@ -136,7 +136,7 @@ class connection(asyncio.Protocol):
                         data=await self.what_to_send()
                         if self.conn is None:
                             return
-                        async with session.post(f'''{http_connect}/{self.conn.name}/{self.conn.forward_to}''', data=data) as resp:
+                        async with session.post(f'''{http_connect}/{self.conn.name}/{self.conn.forward_to}''', data=data, ssl=False) as resp:
                             pass
         @err
         def update_reading(self):
@@ -200,7 +200,7 @@ class connection(asyncio.Protocol):
                 async with aiohttp.ClientSession(trust_env=True) as session:
                         while self.conn is not None and self.conn.work:
                             try:
-                                async with session.get(f'''{http_connect}/{self.conn.name}/{self.conn.forward_to}''') as resp:
+                                async with session.get(f'''{http_connect}/{self.conn.name}/{self.conn.forward_to}''', ssl=False) as resp:
                                     data=await resp.read()
                                     await self.received(data)
                             except asyncio.exceptions.TimeoutError:
