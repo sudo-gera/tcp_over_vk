@@ -11,7 +11,7 @@ import traceback
 import object
 import timeout
 import send
-import tcp
+import event
 
 async def add_to_list(location, value):
     values = location(default = [])
@@ -50,31 +50,41 @@ async def on_message_from_group(group, message):
 
 async def on_decoded_message_from_group(group, data, message):
     await remove_pending(group, message.peer_id, -message.from_id)
+    pair = object.Object(
+        group = group,
+        connect_id = -message.from_id,
+    )
     if data.command == 'ping':
-        data.data = await tcp.event(data.data)
-        await send.send(group, -message.from_id, data, command = 'pong')
+        data.data = await event.event(pair, data.data)
+        await send.send(pair, data, command = 'pong')
     if data.command == 'pong':
         if data.caller_id in send.callers:
             send.callers[data.caller_id].put_nowait(data.data)
     if data.command == 'join':
-        await send.send(group, -message.from_id, data, command = 'greet')
+        await send.send(pair, data, command = 'greet')
     if data.command == 'greet':
         pass
     if data.command == 'args':
         pprint.pprint(object.destroy(data))
-    
+    if data.command == 'data':
+        await event.event(pair, data.data)
+
 async def on_message_event(group, message):
-    if 'action' in message and message.action.type.startswith('chat_invite_user'):
-        if 'member_id' in message.action and -group.group_id != message.action.member_id < 0 :
-            message.from_id = message.action.member_id
-            await on_decoded_message_from_group(group, object.Object(
-                command = 'join'
-            ), message)
-            return
-        else:
-            await process_pending_user(group, getattr(message.action, 'member_id', message.from_id), message.peer_id)
-    if message.from_id < 0:
-        await on_message_from_group(group, message)
+    try:
+        if 'action' in message and message.action.type.startswith('chat_invite_user'):
+            if 'member_id' in message.action and -group.group_id != message.action.member_id < 0 :
+                message.from_id = message.action.member_id
+                await on_decoded_message_from_group(group, object.Object(
+                    command = 'join'
+                ), message)
+                return
+            else:
+                await process_pending_user(group, getattr(message.action, 'member_id', message.from_id), message.peer_id)
+        if message.from_id < 0:
+            await on_message_from_group(group, message)
+    except Exception:
+        err = traceback.format_exc()
+        logging.error(err)
 
 async def vk_input_messages_handler(group):
     while True:
@@ -82,7 +92,7 @@ async def vk_input_messages_handler(group):
             result = await group.API.groups.get_long_poll_server(group_id=group.group_id)
             key, server, ts = result.key, result.server, result.ts
             while True:
-                async with group.API._API__session.get(f'{server}?act=a_check&key={key}&ts={ts}&wait=25') as resp:
+                async with group.session.get(f'{server}?act=a_check&key={key}&ts={ts}&wait=25') as resp:
                     assert resp.status == 200
                     res = object.build(await resp.json())
                 if 'updates' not in res:
@@ -91,9 +101,16 @@ async def vk_input_messages_handler(group):
                 for update in updates:
                     if update.type == 'message_new':
                         message = update.object.message
+                        # pprint.pprint(object.destroy(message))
+                        for attachment in message.attachments:
+                            url = attachment[attachment.type].url
+                            async with group.API.session.get(url) as resp:
+                                assert resp.status == 200
+                                message += ' '
+                                message += resp.read().decode()
+                        # print(message)
                         asyncio.create_task(on_message_event(group, message))
                         # await on_message_event(group, message)
-                        # pprint.pprint(object.destroy(message))
                         # pprint.pprint(group.remote_storage._Storage__file.db)
         except Exception:
             err = traceback.format_exc()

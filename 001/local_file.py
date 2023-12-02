@@ -3,11 +3,13 @@ import os.path
 import asyncio
 import json
 import re
+import typing
+import os
 
-def _opener(path, flags):
+def _opener(path: str | bytes | os.PathLike[str] | os.PathLike[bytes], flags: int) -> int:
     return os.open(path, flags, mode=0o600)
 
-def list_groups():
+def list_groups() -> list[str]:
     res = [
         q.groups()[0]
         for q in [
@@ -19,7 +21,7 @@ def list_groups():
     return res
 
 class file:
-    def __init__(self, group_id = None):
+    def __init__(self, group_id: int|str|None = None):
         suff = f'_{group_id}' if group_id is not None else ''
         self.path = os.path.join(pathlib.Path().home(), f'.tcp_over_vk{suff}.json')
         data = ''
@@ -33,18 +35,18 @@ class file:
             else:
                 raise
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> typing.Any:
         return self.db[key]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: typing.Any) -> None:
         self.db[key] = value
         with open(self.path, 'w', opener=_opener) as file:
             json.dump(self.db, file, indent=4)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: str) -> None:
         del self.db[key]
         with open(self.path, 'w', opener=_opener) as file:
             json.dump(self.db, file, indent=4)
 
-    def __contains__(self, key):
+    def __contains__(self, key: str) -> bool:
         return key in self.db

@@ -5,6 +5,9 @@ import json
 import base64
 import time
 import itertools
+import typing
+
+import api
 
 async def store_db(api, db):
     text = json.dumps(db)
@@ -24,38 +27,42 @@ async def load_db(api):
         text += part
         if not part:
             break
-    text = base64.b16decode(text)
+
+    text = base64.b16decode(text).decode()
     return json.loads(text)
 
 
 class file:
-    async def __new__(cls, api):
-        self = super().__new__(cls)
-        self.api = api
+    API: api.API
+    synced: bool
+    db: dict[str, typing.Any]
+    async def __new__(self, API: api.API):
+        self = super().__new__(self)
+        self.API = API
         self.synced = True
         try:
             # await store_db(self.api, {})
-            self.db = await load_db(self.api)
+            self.db = await load_db(self.API)
         except Exception:
             self.db = {}
         return self
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str):
         return self.db[key]
     
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: typing.Any):
         self.db[key] = value
         self.synced = False
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: str):
         del self.db[key]
         self.synced = False
     
-    def __contains__(self, key):
+    def __contains__(self, key: str):
         return key in self.db
 
     async def sync(self):
-        await store_db(self.api, self.db)
+        await store_db(self.API, self.db)
         self.synced = True
 
     async def __call__(self):

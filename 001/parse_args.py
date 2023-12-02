@@ -6,6 +6,7 @@ import argparse
 import urllib.parse
 import os
 import itertools
+import traceback
 
 import object
 import storage
@@ -25,6 +26,7 @@ def forwarding(arg):
         while arg:
             for q in range(len(arg)):
                 try:
+                    assert not q or arg[q-1] == ':'
                     url = urllib.parse.urlsplit('http://' + arg[q:])
                     urld = object.Object(
                         host = '127.0.0.1' if url.port is None else url.hostname,
@@ -38,7 +40,7 @@ def forwarding(arg):
                             url1 = urllib.parse.urlsplit('http://' + surl)
                             assert url1.port == urld.port
                             assert url1.hostname == urld.host
-                            assert arg[q:] == surl or f'127.0.0.1:{arg[q]}' == surl
+                            assert arg[q:] == surl or f'127.0.0.1:{arg[q:]}' == surl
                             break
                         except Exception:
                             pass
@@ -85,7 +87,8 @@ def parse_args(args = sys.argv):
     parser.add_argument('-g', type=int_or_commands('new', 'list'), help=f'group_id to act as, or a command (-g help to list them)')
     parser.add_argument('--meta', type=str, nargs='?')
     parser.add_argument('--set-default', action='store_true', help='set given group_id as default to act as, set by default if there is no group ids')
-    parser.add_argument('connect_id', type=int_or_commands('list'), nargs='?', help='group_id to connect or a command (pass help to list them)')
+    parser.add_argument('connect_id', type=int, help='group_id to connect or a command')
+    parser.add_argument('--list', action='store_true', help='list all forwardings')
     return parser.parse_args()
 
 def get_token(group_id):

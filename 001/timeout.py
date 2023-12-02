@@ -1,7 +1,8 @@
 import asyncio
 import traceback
+import typing
 
-async def run_with_timeout(coro, timeout):
+async def run_with_timeout(coro: typing.Coroutine[typing.Any, typing.Any, typing.Any], timeout: float) -> typing.Any:
     task = asyncio.create_task(coro)
     await asyncio.wait([task], timeout=timeout)
     if task.done():

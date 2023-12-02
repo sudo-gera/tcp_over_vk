@@ -12,5 +12,5 @@ class tmp_file:
 
         self.prefix = os.path.join(TMP_DIR, f'tcp_over_vk_{os.getuid()}_{group_id}_')
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> str:
         return self.prefix + name + '.' + name

@@ -3,6 +3,8 @@ import aiohttp
 import logging
 import asyncio
 import pprint
+import dataclasses
+import typing
 
 import api
 import storage
@@ -10,11 +12,23 @@ import local_file
 import object
 import remote_file
 import router
-import tcp
+import event
 import send
 
+@dataclasses.dataclass
+class current_group:
+    session: aiohttp.ClientSession
+    API: api.API
+    remote_storage: storage.Storage
+    group_id: int
+
+@dataclasses.dataclass
+class current_pair:
+    connect_id: int
+    group: current_group
+
 class console_handler():
-    def __init__(self, group_id):
+    def __init__(self, group_id: int):
         self.group_id = group_id
         self.resources = self.resource_manager()
     
@@ -27,77 +41,82 @@ class console_handler():
             API = api.API(session, group_storage.token())
             async with await remote_file.file(API) as rem_file:
                 remote_storage = storage.Storage(rem_file)
-                self.group = object.Object(
+                self.group = current_group(
+                    session = session,
                     remote_storage = remote_storage,
                     API = API,
                     group_id = self.group_id,
                 )
-                yield
+                yield self
+
+    async def __aenter__(self):
+        return await anext(self.resources, 0)
+    
+    async def __aexit__(self, *a):
+        return await anext(self.resources, 0)
 
     async def handle(self, args, stdout, stderr):
         try:
-            if isinstance(args.connect_id, int):
-                args.connect_id = abs(args.connect_id)
-                chat = await send.reach(self.group, args.connect_id)
-                if chat.code in [0]:
-                    if args.L is not None:
-                        for forwarding in args.L:
-                            res = await tcp.event(
+            args.connect_id = abs(args.connect_id)
+            pair = current_pair(
+                connect_id = args.connect_id,
+                group = self.group,
+            )
+            chat = await send.reach(pair)
+            if chat.code in [0]:
+                handlers: dict[str,tuple[typing.Callable, str]] = {
+                    'L': (event.event, 'bind'),
+                    'R': (send.call, 'bind'),
+                    'l': (event.event, 'del'),
+                    'r': (send.call, 'del'),
+                }
+                for arg in handlers:
+                    if getattr(args, arg) is not None:
+                        for forwarding in getattr(args, arg):
+                            res = await handlers[arg][0](
+                                pair,
                                 object.Object(
-                                    command = 'bind',
+                                    command = handlers[arg][1],
                                     forwarding = forwarding,
-                                )
+                                ),
                             )
-                            print(res.log, file = stderr)
-                    if args.l is not None:
-                        for forwarding in args.l:
-                            await tcp.event(
-                                object.Object(
-                                    command = 'del',
-                                    forwarding = forwarding,
-                                )
-                            )
-                            print(res.log, file = stderr)
-                    if args.R is not None:
-                        for forwarding in args.R:
-                            res = await send.call(self.group, args.connect_id, object.Object(
-                                command = 'bind',
-                                forwarding = forwarding,
-                            ))
-                            print(res.log, file = stderr)
-                    if args.r is not None:
-                        for forwarding in args.r:
-                            res = await send.call(self.group, args.connect_id, object.Object(
-                                command = 'del',
-                                forwarding = forwarding,
-                            ))
-                            print(res.log, file = stderr)
-                    if args.meta is not None:
-                        res = await send.call(self.group, args.connect_id, object.Object(
-                            command = 'meta',
-                            value = args.meta,
-                        ))
-                        print(res.log, file = stderr)
-                    # await asyncio.sleep(4)
-                    # await send.send(self.group, args.connect_id, object.Object(
-                    #     command = 'args',
-                    #     args = args,
-                    # ))
-                if chat.code in [1,2]:
-                    print(f'No response from remote device.', file=stderr)
-                    print(f'Is server running?', file=stderr)
-                    print(f'You can run `python3 main.py -g {args.connect_id}` on remote machine.', file=stderr)
-                    print(f'It will check server and start it, if nessesary.', file=stderr)
-                if chat.code in [2]:
-                    print(file=stderr)
-                    print(f'Or maybe you have not completed these steps:', file=stderr)
-                    print(file=stderr)
-                if chat.code in [2,3]:
-                    print(f'1. Open this link of the chat: {chat.link}', file=stderr)
-                    print(f'2. Join the chat "{chat.name}"', file=stderr)
-                    print(f'3. Open this link of the remote group https://vk.com/club{args.connect_id}', file=stderr)
-                    print(f'4. Invite this group to this chat', file=stderr)
-                    print(f'5. Run this command again', file=stderr)
+                            if res is ...:
+                                print('Timed out', file=stderr)
+                            else:
+                                print(res.log, file=stderr, end='')
+                if args.meta is not None:
+                    res = await send.call(pair, object.Object(
+                        command = 'meta',
+                        value = args.meta,
+                    ))
+                    print(res.log, file = stderr)
+            if chat.code in [1,2]:
+                print(f'No response from remote device.', file=stderr)
+                print(f'Is server running?', file=stderr)
+                print(f'You can run `python3 main.py -g {args.connect_id}` on remote machine.', file=stderr)
+                print(f'It will check server and start it, if nessesary.', file=stderr)
+            if chat.code in [2]:
+                print(file=stderr)
+                print(f'Or maybe you have not completed these steps:', file=stderr)
+                print(file=stderr)
+            if chat.code in [2,3]:
+                print(f'1. Open this link of the chat: {chat.link}', file=stderr)
+                print(f'2. Join the chat "{chat.name}"', file=stderr)
+                print(f'3. Open this link of the remote group https://vk.com/club{args.connect_id}', file=stderr)
+                print(f'4. Invite this group to this chat', file=stderr)
+                print(f'5. Run this command again', file=stderr)
+            if args.list:
+                print('Local forwardings:', file=stderr)
+                res = await event.event(pair, object.Object(
+                        command = 'list',
+                ))
+                print(res.log, file = stderr)
+                print('Remote forwardings:', file=stderr)
+                res = await send.call(pair, object.Object(
+                    command = 'list',
+                ))
+                print(res.log, file = stderr)
+
         except Exception:
             print(traceback.format_exc(), file=stderr)
 
