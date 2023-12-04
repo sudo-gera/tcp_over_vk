@@ -39,3 +39,4 @@ async def start_and_send(args):
         except (ConnectionRefusedError, FileNotFoundError):
             await start_server(args)
             await asyncio.sleep(1)
+            await send(args, tmp_file)
