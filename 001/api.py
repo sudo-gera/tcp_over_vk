@@ -6,6 +6,7 @@ import json
 import time
 import logging
 import typing
+import itertools
 
 import object
 
@@ -17,21 +18,27 @@ class _API:
         self.__lock = asyncio.Lock()
 
     async def __call__(self, path, *a, **args):
-        async with self.__lock:
-            # print(args, time.asctime(), id(self.__lock))
-            await asyncio.sleep(self.__wait_until - time.monotonic())
-            # print(args, time.asctime(), id(self.__lock))
-            args = dict(access_token=self.__token, v='5.199') | args
-            form = aiohttp.FormData(args)
-            url = f'https://api.vk.com/method/{path[1:]}'
-            async with self.__session.post(url, data=form) as resp:
-                assert resp.status == 200
-                result = object.build(await resp.json())
-            self.__wait_until = time.monotonic() + 1
-            if 'response' in result:
-                return result.response
-            logging.error(result.error)
-            raise TabError(result.error)
+        for c in itertools.count():
+            async with self.__lock:
+                await asyncio.sleep(self.__wait_until - time.monotonic())
+                result = await self.request(path, *a, **args)              
+                self.__wait_until = time.monotonic() + 0.5
+                if 'response' in result:
+                    return result.response
+                logging.error(result.error)
+                if result.error.error_code == 9:
+                    await asyncio.sleep(c)
+                    continue
+                raise TabError(result.error)
+
+    async def request(self, path, *a, **args):
+        args = dict(access_token=self.__token, v='5.199') | args
+        form = aiohttp.FormData(args)
+        url = f'https://api.vk.com/method/{path[1:]}'
+        async with self.__session.post(url, data=form) as resp:
+            assert resp.status == 200
+            result = object.build(await resp.json())
+        return result
 
 class API:
     def __init__(self, session: aiohttp.ClientSession, token: str, _path: str = '', _api = None):

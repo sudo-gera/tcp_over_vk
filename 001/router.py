@@ -13,6 +13,8 @@ import timeout
 import send
 import event
 
+assert False
+
 async def add_to_list(location, value):
     values = location(default = [])
     if value not in values:

@@ -12,7 +12,9 @@ import stream
 import get_file_prefix
 import console_handler
 import object
-import router
+# import router
+import receiver
+import tcp
 
 async def connection(handler: console_handler.console_handler, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     async with stream.Stream(reader, writer) as sock:
@@ -53,9 +55,10 @@ async def main():
         print(os.getpid(), file=file)
     handler = console_handler.console_handler(args.group_id)
     server: asyncio.Server
-    async with await asyncio.start_unix_server(functools.partial(connection, handler), tmp_file.sock) as server:
-        async with handler:
-            asyncio.create_task(router.vk_input_messages_handler(handler.group))
+    async with handler:
+        async with await asyncio.start_unix_server(functools.partial(connection, handler), tmp_file.sock) as server:
+            logging.info('server started')
+            asyncio.create_task(receiver.handling_vk_events_loop(handler.group))
             try:
                 await server.serve_forever()
             except asyncio.CancelledError:

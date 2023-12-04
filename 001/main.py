@@ -5,7 +5,7 @@ import client
 
 async def main():
     args = await parse_args.process_args()
-    await client.send(vars(args))
+    await client.start_and_send(vars(args))
 
 if __name__ == '__main__':
     asyncio.run(main())

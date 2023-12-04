@@ -8,13 +8,15 @@ import itertools
 import functools
 import sys
 import difflib
+import traceback
 
 
 import storage
 import local_file
 import api
+import make_id
 import object
-import router
+# import router
 import remote_file
 
 def polyhash(text):
@@ -69,9 +71,43 @@ async def main():
                 API = API,
                 remote_storage = remote_storage,
             )
-            if group_id == group_ids[0]:
-                asyncio.create_task(vk_input_messages_handler(group))
-                continue
+        
+            # if group_id == group_ids[0]:
+            #     asyncio.create_task(vk_input_messages_handler(group))
+            #     continue
+
+            for connect_id in group_ids:
+                if connect_id != group_id:
+                    break
+            route = remote_storage.route[connect_id]()
+            pair = object.Object(
+                connect_id = connect_id,
+                group = group,
+            )
+        # for q in range(99):
+        #     try:
+        #         url = (await pair.group.API.docs.get_messages_upload_server(peer_id = 2000000000 + q)).upload_url
+        #         session: aiohttp.ClientSession
+        #         session = pair.group.session
+        #         filename = f'{make_id.make_id()}.txt'
+        #         with aiohttp.MultipartWriter('form-data') as writer:
+        #             part = writer.append(b'hello')
+        #             part.set_content_disposition('form-data', filename = filename, name = 'file')
+        #             async with session.post(url, data = writer) as resp:
+        #                 assert resp.status == 200
+        #                 res = object.build(await resp.json())
+        #         file = await pair.group.API.docs.save(file = res.file, title = filename)
+        #         print(file.doc.url)
+        #         message = f'@club{pair.connect_id}'
+        #         await pair.group.API.messages.send(
+        #             random_id = 0,
+        #             peer_id = route,
+        #             message = message,
+        #             attachment = f'doc{file.doc.owner_id}_{file.doc.id}'
+        #         )
+        #     except Exception:
+        #         print(traceback.format_exc())
+        # print(await pair.group.API.docs.search(q='llll'))
 
         # a = await API.wall.create_comment(owner_id = -group_ids[1], post_id = 1, message = f'{time.asctime()}', from_group = group_ids[0])
         # pprint.pprint(object.destroy(a))
@@ -91,32 +127,32 @@ async def main():
         #     finally:
         #         print(f'{key:5} from {value - count + 1} to {value} len {count}')
         # message = ''.join([chr(c) for c in range(12832, 12832+9000)])
-        async def check(message):
-            while 1:
-                encodable = []
-                for c in message:
-                    try:
-                        c.encode()
-                        encodable.append(True)
-                    except Exception:
-                        encodable.append(False)
-                if not any(encodable):
-                    return 2
-                if not all(encodable):
-                    return 1
-                try:
-                    await API.messages.send(random_id = 0, peer_id = remote_storage.route[group_ids[0]](), message = message)
-                except TabError as e:
-                    if e.msg.error_code == 100:
-                        return 2
-                    if e.msg.error_code == 914:
-                        return 1
-                    await asyncio.sleep(60)
-                    continue
-                qmes = await q.get()
-                # print(message)
-                res = int(message != qmes)
-                return res if len(message) > 2 else res * 2
+        # async def check(message):
+        #     while 1:
+        #         encodable = []
+        #         for c in message:
+        #             try:
+        #                 c.encode()
+        #                 encodable.append(True)
+        #             except Exception:
+        #                 encodable.append(False)
+        #         if not any(encodable):
+        #             return 2
+        #         if not all(encodable):
+        #             return 1
+        #         try:
+        #             await API.messages.send(random_id = 0, peer_id = remote_storage.route[group_ids[0]](), message = message)
+        #         except TabError as e:
+        #             if e.msg.error_code == 100:
+        #                 return 2
+        #             if e.msg.error_code == 914:
+        #                 return 1
+        #             await asyncio.sleep(60)
+        #             continue
+        #         qmes = await q.get()
+        #         # print(message)
+        #         res = int(message != qmes)
+        #         return res if len(message) > 2 else res * 2
 
         # _begin = 65534
         # _end = 67582 #unilen
@@ -160,20 +196,20 @@ async def main():
         #     await long_check(right, unitest)
             
 
-        unitest = [1] * unilen
-        for line in open('unitest.txt'):
-            begin, end, val = map(int, line.split())
-            if val != 1:
-                for c in range(begin, end+1):
-                    unitest[c] = val
+        # unitest = [1] * unilen
+        # for line in open('unitest.txt'):
+        #     begin, end, val = map(int, line.split())
+        #     if val != 1:
+        #         for c in range(begin, end+1):
+        #             unitest[c] = val
 
-        message = []
-        for c in range(unilen):
-            if unitest[c] == 0:
-                message.append(chr(c))
-            # if len(message) == 32:
-                print(await check(''.join(message*4096)), c)
-                message.clear()
+        # message = []
+        # for c in range(unilen):
+        #     if unitest[c] == 0:
+        #         message.append(chr(c))
+        #     # if len(message) == 32:
+        #         print(await check(''.join(message*4096)), c)
+        #         message.clear()
 
         # s = 'qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890йцукенгшщзхъфывапролджэёячсмитьбюЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЁЯЧСМИТЬБЮ'
         # print(len(s))

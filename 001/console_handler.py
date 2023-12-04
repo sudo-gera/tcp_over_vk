@@ -11,9 +11,9 @@ import storage
 import local_file
 import object
 import remote_file
-import router
-import event
-import send
+# import router
+import local
+import remote
 
 @dataclasses.dataclass
 class current_group:
@@ -62,34 +62,33 @@ class console_handler():
                 connect_id = args.connect_id,
                 group = self.group,
             )
-            chat = await send.reach(pair)
+            chat = await remote.reach(pair)
             if chat.code in [0]:
                 handlers: dict[str,tuple[typing.Callable, str]] = {
-                    'L': (event.event, 'bind'),
-                    'R': (send.call, 'bind'),
-                    'l': (event.event, 'del'),
-                    'r': (send.call, 'del'),
+                    'L': (local, 'bind'),
+                    'R': (remote, 'bind'),
+                    'l': (local, 'del'),
+                    'r': (remote, 'del'),
                 }
                 for arg in handlers:
                     if getattr(args, arg) is not None:
                         for forwarding in getattr(args, arg):
-                            res = await handlers[arg][0](
-                                pair,
-                                object.Object(
-                                    command = handlers[arg][1],
+                            try:
+                                await handlers[arg][0].call(
+                                    pair, stdout, stderr,
+                                    event = handlers[arg][1],
                                     forwarding = forwarding,
-                                ),
-                            )
-                            if res is ...:
+                                )
+                            except TabError:
+                                print('Cannot send', file=stderr)
+                            except TimeoutError:
                                 print('Timed out', file=stderr)
-                            else:
-                                print(res.log, file=stderr, end='')
-                if args.meta is not None:
-                    res = await send.call(pair, object.Object(
-                        command = 'meta',
-                        value = args.meta,
-                    ))
-                    print(res.log, file = stderr)
+                # if args.meta is not None:
+                #     res = await send.call(pair, object.Object(
+                #         command = 'meta',
+                #         value = args.meta,
+                #     ))
+                #     print(res.log, file = stderr)
             if chat.code in [1,2]:
                 print(f'No response from remote device.', file=stderr)
                 print(f'Is server running?', file=stderr)
@@ -106,16 +105,10 @@ class console_handler():
                 print(f'4. Invite this group to this chat', file=stderr)
                 print(f'5. Run this command again', file=stderr)
             if args.list:
-                print('Local forwardings:', file=stderr)
-                res = await event.event(pair, object.Object(
-                        command = 'list',
-                ))
-                print(res.log, file = stderr)
-                print('Remote forwardings:', file=stderr)
-                res = await send.call(pair, object.Object(
-                    command = 'list',
-                ))
-                print(res.log, file = stderr)
+                print('Local forwardings:', file=stdout)
+                await local.call(pair, stdout, stderr, event = 'list')
+                print('Remote forwardings:', file=stdout)
+                await remote.call(pair, stdout, stderr, event = 'list')
 
         except Exception:
             print(traceback.format_exc(), file=stderr)
