@@ -88,7 +88,7 @@ async def connection_loop(pair, reader, writer, connection_id):
 @event_handler.handle('kill')
 async def on_kill(pair, message):
     if message.connection_id in connections:
-        await connections[message.connection_id].aclose()
+        await connections[message.connection_id][1].aclose()
 
 @event_handler.handle('tcp')
 async def on_remote_connection_event(pair, message):
