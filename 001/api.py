@@ -22,7 +22,7 @@ class _API:
             async with self.__lock:
                 await asyncio.sleep(self.__wait_until - time.monotonic())
                 result = await self.request(path, *a, **args)              
-                self.__wait_until = time.monotonic() + 0.5
+                self.__wait_until = time.monotonic() + 0.25
                 if 'response' in result:
                     return result.response
                 logging.error(result.error)
