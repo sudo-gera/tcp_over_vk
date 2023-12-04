@@ -1,5 +1,6 @@
 import re
 import secrets
+from annotation import eat
 
 table = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzЁАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюяё'
 assert len(table) == 128
@@ -8,15 +9,15 @@ untable = {w:q for q,w in enumerate(table)}
 
 def convert(text: bytes, bin_reg1: str, bin_reg2: str) -> bytes:
     l = len(text) * 8
-    text = ('{:0%ib}' % l).format(int.from_bytes(text))[:l]
+    text = ('{:0%ib}' % l).format(int.from_bytes(text, 'big'))[:l]
     text = re.sub(bin_reg1, bin_reg2, text)
     assert len(text) % 8 == 0
     l = len(text) // 8
-    text = int('0' + text, 2).to_bytes(l)
+    text = int('0' + text, 2).to_bytes(l, 'big')
     return text
 
 
-def encode(text: bytes|bytearray) -> str:
+def encode(text: eat | bytes|bytearray) -> str:
     suff = (len(text)+6)//7*7 - len(text)
     text += b'\0'*suff
     assert len(text) % 7 == 0

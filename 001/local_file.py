@@ -6,7 +6,9 @@ import re
 import typing
 import os
 
-def _opener(path: str | bytes | os.PathLike[str] | os.PathLike[bytes], flags: int) -> int:
+from annotation import eat
+
+def _opener(path: eat | str | bytes | os.PathLike[str] | os.PathLike[bytes], flags: int) -> int:
     return os.open(path, flags, mode=0o600)
 
 def list_groups() -> list[str]:
@@ -21,7 +23,7 @@ def list_groups() -> list[str]:
     return res
 
 class file:
-    def __init__(self, group_id: int|str|None = None):
+    def __init__(self, group_id: eat | int|str|None = None):
         suff = f'_{group_id}' if group_id is not None else ''
         self.path = os.path.join(pathlib.Path().home(), f'.tcp_over_vk{suff}.json')
         data = ''

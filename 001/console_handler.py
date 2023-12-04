@@ -50,10 +50,16 @@ class console_handler():
                 yield self
 
     async def __aenter__(self):
-        return await anext(self.resources, 0)
+        try:
+            return await self.resources.asend(None)
+        except StopAsyncIteration:
+            pass
     
     async def __aexit__(self, *a):
-        return await anext(self.resources, 0)
+        try:
+            return await self.resources.asend(None)
+        except StopAsyncIteration:
+            pass
 
     async def handle(self, args, stdout, stderr):
         try:

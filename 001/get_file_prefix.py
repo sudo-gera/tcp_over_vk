@@ -1,8 +1,10 @@
 import os
 import sys
 
+from annotation import eat
+
 class tmp_file:
-    def __init__(self, group_id: str|int):
+    def __init__(self, group_id: eat|str|int):
         if sys.platform == 'darwin':
             TMP_DIR = '/private/tmp/'
         elif os.getcwd().startswith('/data/data/com.termux'):
