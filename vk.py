@@ -82,7 +82,9 @@ def recv_loop(api,q,tg_api=None):
                 long_poll=api.groups.getLongPollServer(group_id=group_id)
                 ts=long_poll['ts']
 
+            ic(api.group_id)
             poll=json.loads(urlopen(f"{long_poll['server']}?act=a_check&key={long_poll['key']}&ts={ts}&wait=25").read().decode())
+            ic(poll)
 
             if 'failed' in poll:
                 if poll['failed']==1:

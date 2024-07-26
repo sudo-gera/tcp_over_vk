@@ -40,7 +40,7 @@ if __name__ == '__main__':
         # u='http://172.30.1.136:4444'
         u='https://user225847803-lsh3jbwp.wormhole.vk-apps.com/'
 
-    threading.Thread(target=lambda:direct.setup(u)).start()
+    # threading.Thread(target=lambda:direct.setup(u)).start()
 
     # port=4032
     if not os.fork():
@@ -48,8 +48,8 @@ if __name__ == '__main__':
         q=queue.Queue()
         s=queue.Queue()
         pipe=pipes[0][1]
-        # api=vk.Api(token)
-        # api.group_id=tokens[token]
+        api=vk.Api(token)
+        api.group_id=tokens[token]
         # tg_api=tg.Api(tg_token)
         # api=tg.Api(token)
         def run(q,pipe):
@@ -86,8 +86,8 @@ if __name__ == '__main__':
         e=queue.Queue()
         s=queue.Queue()
         pipe=pipes[1][0]
-        # api=vk.Api(token)
-        # api.group_id=tokens[token]
+        api=vk.Api(token)
+        api.group_id=tokens[token]
         # tg_api=tg.Api(tg_token)
         # api=tg.Api(token)
         def run(q,e,pipe):

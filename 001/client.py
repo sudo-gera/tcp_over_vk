@@ -32,11 +32,11 @@ async def start_and_send(args):
     # while True:
     try:
         await send(args, tmp_file)
-    except (ConnectionRefusedError, FileNotFoundError):
+    except (ConnectionRefusedError, FileNotFoundError, BrokenPipeError):
         await asyncio.sleep(1)
         try:
             await send(args, tmp_file)
-        except (ConnectionRefusedError, FileNotFoundError):
+        except (ConnectionRefusedError, FileNotFoundError, BrokenPipeError):
             await start_server(args)
             await asyncio.sleep(1)
             await send(args, tmp_file)

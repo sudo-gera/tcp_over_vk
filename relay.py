@@ -137,7 +137,7 @@ class Server:
     def pipe_send(self,w):
         # ic(w)
         assert type(w)==dict
-        assert set(w.keys()) in [{'event','id'},{'event','id','data'}]
+        assert set(w.keys()) in [{'event','id'},{'event','id','data', 'num'}]
         assert w['event'] in 'new del got'.split()
         assert (w['event'] == 'got')==('data' in w)
         assert w['id']%4==0
