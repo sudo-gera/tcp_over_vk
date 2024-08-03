@@ -3,7 +3,7 @@ const common = require('./common.js');
 
 
 
-const turl = '________'     // u'//rl, который дал вам туннель
+const turl = 'wss://user225847803-ltok5atr.wormhole.vk-apps.com/'     // u'//rl, который дал вам туннель
 
 common.create_tcp_server(3128, async server_tcp_socket => {
     await common.create_wss_client(turl, client_wss_socket => {
