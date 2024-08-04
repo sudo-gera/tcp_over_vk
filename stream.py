@@ -5,7 +5,12 @@ import ssl
 import functools
 
 class Stream(asyncio.StreamReader, asyncio.StreamWriter):
-    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    def __init__(self, reader: asyncio.StreamReader | tuple[asyncio.StreamReader, asyncio.StreamWriter], writer: asyncio.StreamWriter|None = None):
+        if writer is None:
+            assert isinstance(reader, tuple)
+            reader, writer = reader
+        assert isinstance(reader, asyncio.StreamReader)
+        assert isinstance(reader, asyncio.StreamWriter)
         self.__reader = reader
         self.__writer = writer
 
@@ -43,3 +48,11 @@ class Stream(asyncio.StreamReader, asyncio.StreamWriter):
 
     def __del__(self) -> None:
         pass
+
+def streamify(func):
+    @functools.wraps(func)
+    async def wrapper(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        async with Stream(reader, writer) as sock:
+            return await func(sock)
+    return wrapper
+

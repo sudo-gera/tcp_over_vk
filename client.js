@@ -1,11 +1,31 @@
 'use strict';
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const common = require('./common.js');
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+async function load(){
+	fetch(process.argv[2]).then(e=>{
+		console.log(e);
+		e.text().then(e=>{
+			console.log(e);
+		});
+	});
+}
+
+//load();
 
 
-const turl = '________'     // u'//rl, который дал вам туннель
+//const turl = '________'     // u'//rl, который дал вам туннель
+
+let turl = '';
 
 common.create_tcp_server(3128, async server_tcp_socket => {
+    try{
+        turl = 'wss' + (await (await fetch(process.argv[2])).text());
+    }catch(e){
+        console.log(e);
+    }
     await common.create_wss_client(turl, client_wss_socket => {
         let wss_closing = 0;
         const wss_closer = () => {
@@ -48,4 +68,5 @@ common.create_tcp_server(3128, async server_tcp_socket => {
         });
     });
 });
+
 
