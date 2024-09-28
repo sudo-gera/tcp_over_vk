@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "tcp-over-vk"
+version = "0.1.0"
+description = ""
+authors = ["sudo-gera <gera.tatarinov.999@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+aiohttp = "^3.10.5"
+python-socketio = "^5.11.4"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
