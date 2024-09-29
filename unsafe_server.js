@@ -12,7 +12,7 @@ common.create_wss_server(3000, async server_wss_socket => {
         console.log('closed tcp -> closing wss');
         server_wss_socket.disconnect();
     };
-    await common.create_tcp_client(3001, () => {
+    await common.create_tcp_client(3128, () => {
         wss_closing -= 1;
         if (wss_closing < 0){
             wss_closer();
