@@ -28,6 +28,7 @@ common.create_tcp_server(3128, async server_tcp_socket => {
     }
     console.log(turl);
     await common.create_wss_client(turl, client_wss_socket => {
+        console.log('made wss');
         let wss_closing = 0;
         const wss_closer = () => {
             console.log('closed tcp -> closing wss');
@@ -67,7 +68,6 @@ common.create_tcp_server(3128, async server_tcp_socket => {
                 }
             }
         });
-        console.log('set handlers');
     });
 });
 
