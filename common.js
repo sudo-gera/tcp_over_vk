@@ -122,6 +122,36 @@ function safe_emit(socket, on_message){
     };
 }
 
+function unsafe_emit(socket, on_message){
+    socket.on('message', (message, f) => {
+        on_message(message);
+        // if (!(message.id in known_events)){
+        //     known_events[message.id] = 0;
+        //     on_message(message.message);
+        // }
+        // f(0);
+    })
+    return message => {
+        return socket.emit('message', message);
+        // return new Promise(r=>{
+        //     let data = {
+        //         id: Math.random(),
+        //         message: message,
+        //     }
+        //     let emit = () => {
+        //         socket.timeout(4000).emit('message', data, err => {
+        //             if (err) {
+        //                 emit();
+        //             }else{
+        //                 r(0);
+        //             }
+        //         })
+        //     };
+        //     emit();
+        // });
+    };
+}
+
 
 
 
