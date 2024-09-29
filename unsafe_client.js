@@ -67,6 +67,7 @@ common.create_tcp_server(3128, async server_tcp_socket => {
                 }
             }
         });
+        console.log('set handlers');
     });
 });
 
