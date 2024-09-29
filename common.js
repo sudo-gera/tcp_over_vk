@@ -162,6 +162,7 @@ if (typeof module !== 'undefined'){
         create_tcp_server: create_tcp_server,
         create_tcp_client: create_tcp_client,
         safe_emit: safe_emit,
+        unsafe_emit: unsafe_emit,
     }
 
 }
