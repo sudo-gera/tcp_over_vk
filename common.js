@@ -123,7 +123,7 @@ function safe_emit(socket, on_message){
 }
 
 function unsafe_emit(socket, on_message){
-    socket.on('message', (message, f) => {
+    socket.on('message', (message) => {
         on_message(message);
         // if (!(message.id in known_events)){
         //     known_events[message.id] = 0;
