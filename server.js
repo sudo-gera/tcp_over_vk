@@ -20,7 +20,7 @@ common.create_wss_server(3000, async server_wss_socket => {
     }, client_tcp_socket => {
         let emit = null;
         client_tcp_socket.on('data', async msg => {
-            console.log('>>>', msg.toString('base64'));
+            console.log('>>>');
             try{
                 wss_closing += 2;
                 client_tcp_socket.pause();
@@ -39,7 +39,7 @@ common.create_wss_server(3000, async server_wss_socket => {
             client_tcp_socket.destroy();
         });
         emit = common.safe_emit(server_wss_socket, msg => {
-            console.log('<<<', msg);
+            console.log('<<<');
             client_tcp_socket.write(Buffer.from(msg, 'base64'));
         });
     });

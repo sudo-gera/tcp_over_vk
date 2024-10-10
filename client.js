@@ -34,7 +34,7 @@ common.create_tcp_server(3128, async server_tcp_socket => {
         };
         let emit = null;
         emit = common.safe_emit(client_wss_socket, msg => {
-            console.log('>>>', msg);
+            console.log('>>>');
             server_tcp_socket.write(Buffer.from(msg, 'base64'));
         });
         client_wss_socket.on('disconnect', () => {
@@ -53,7 +53,7 @@ common.create_tcp_server(3128, async server_tcp_socket => {
             client_wss_socket.disconnect();
         });
         server_tcp_socket.on('data', async msg => {
-            console.log('<<<', msg.toString('base64'));
+            console.log('<<<');
             try{
                 wss_closing += 2;
                 server_tcp_socket.pause();
