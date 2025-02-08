@@ -1,5 +1,7 @@
 'use strict';
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+//const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+//const fetch = (...args) => require('node-fetch').then(({default: fetch}) => fetch(...args));
+const fetch = require('node-fetch').default;
 const common = require('./common.js');
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -34,7 +36,7 @@ common.create_tcp_server(3128, async server_tcp_socket => {
         };
         let emit = null;
         emit = common.safe_emit(client_wss_socket, msg => {
-            console.log('>>>');
+            console.log('>>> ' + msg);
             server_tcp_socket.write(Buffer.from(msg, 'base64'));
         });
         client_wss_socket.on('disconnect', () => {
@@ -53,7 +55,7 @@ common.create_tcp_server(3128, async server_tcp_socket => {
             client_wss_socket.disconnect();
         });
         server_tcp_socket.on('data', async msg => {
-            console.log('<<<');
+            console.log('<<< ' + msg.toString('base64'));
             try{
                 wss_closing += 2;
                 server_tcp_socket.pause();
