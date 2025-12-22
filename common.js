@@ -35,7 +35,7 @@ function create_wss_client(url, on_connect){
 
     const io = require('socket.io-client')
 
-    const client_socket = io(url)
+    const client_socket = io(url);
 
     let p = new Promise(r=>{
         client_socket.on('connect', async () => {
